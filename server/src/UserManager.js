@@ -1,0 +1,111 @@
+const fs = require('fs');
+const path = require('path');
+
+class UserManager {
+  constructor(dataDir) {
+    this.usersDir = path.join(dataDir, 'users');
+    if (!fs.existsSync(this.usersDir)) {
+      fs.mkdirSync(this.usersDir, { recursive: true });
+    }
+    this.users = new Map();
+    this.loadAll();
+  }
+
+  loadAll() {
+    try {
+      const files = fs.readdirSync(this.usersDir);
+      for (const file of files) {
+        if (file.endsWith('.json')) {
+          const filePath = path.join(this.usersDir, file);
+          const data = fs.readFileSync(filePath, 'utf8');
+          const user = JSON.parse(data);
+          if (user && user.username) {
+            let modified = false;
+            if (user.gems === undefined) { user.gems = 500; modified = true; }
+            if (user.energy === undefined) { user.energy = 100; modified = true; }
+            if (user.maxEnergy === undefined) { user.maxEnergy = 200; modified = true; }
+            if (!user.itemEnergyProgress) { user.itemEnergyProgress = {}; modified = true; }
+            this.users.set(user.username.toLowerCase(), user);
+            if (modified) {
+              fs.writeFileSync(filePath, JSON.stringify(user, null, 2), 'utf8');
+            }
+          }
+        }
+      }
+      console.log(`[UserManager] Loaded ${this.users.size} user file(s) from ${this.usersDir}`);
+    } catch (err) {
+      console.error(`[UserManager Error] Failed to load users: ${err.message}`);
+    }
+  }
+
+  saveUser(username) {
+    try {
+      const user = this.getUser(username);
+      if (!user) return;
+      const key = user.username.toLowerCase();
+      const filePath = path.join(this.usersDir, `${key}.json`);
+      fs.writeFileSync(filePath, JSON.stringify(user, null, 2), 'utf8');
+    } catch (err) {
+      console.error(`[UserManager Error] Failed to save user ${username}: ${err.message}`);
+    }
+  }
+
+  getUser(username) {
+    if (!username) return null;
+    let clean = username.trim().toLowerCase();
+    if (clean.startsWith('simple') && clean !== 'simpleguest') {
+      clean = clean.substring(6);
+    }
+    return this.users.get(clean) || null;
+  }
+
+  register(username, password = 'user123', email = '') {
+    if (!username) return null;
+    const key = username.trim().toLowerCase();
+    let user = this.users.get(key);
+    if (!user) {
+      user = {
+        username: username.trim(),
+        password: password || 'user123',
+        email: email || '',
+        role: 'user',
+        isAdmin: false,
+        isStaff: false,
+        isMod: false,
+        goldmember: false,
+        haveSmileyPackage: false,
+        player_is_beta_member: false,
+        face: 0,
+        aura: 0,
+        auraColor: 0,
+        badge: '',
+        gems: 500,
+        energy: 100,
+        maxEnergy: 200,
+        payVault: [],
+        smileyGoldBorder: false,
+        registeredAt: new Date().toISOString(),
+        lastLogin: new Date().toISOString()
+      };
+      this.users.set(key, user);
+      this.saveUser(user.username);
+      console.log(`[UserManager] Registered and saved user file: users/${key}.json`);
+    } else {
+      user.lastLogin = new Date().toISOString();
+      if (password) user.password = password;
+      if (email) user.email = email;
+      this.saveUser(user.username);
+    }
+    return user;
+  }
+
+  updateUser(username, updateData) {
+    const user = this.getUser(username);
+    if (user) {
+      Object.assign(user, updateData);
+      this.saveUser(user.username);
+    }
+  }
+}
+
+module.exports = UserManager;

@@ -1,0 +1,487 @@
+[
+  {
+    "id": "bricksecrets",
+    "name": "Secret Bricks",
+    "desc": "Secret blocks package"
+  },
+  {
+    "id": "brickglass",
+    "name": "Glass Bricks",
+    "desc": "Transparent glass blocks"
+  },
+  {
+    "id": "brickminerals",
+    "name": "Mineral Bricks",
+    "desc": "Shiny minerals and ores"
+  },
+  {
+    "id": "brickcandy",
+    "name": "Candy Bricks",
+    "desc": "Sweet candy blocks"
+  },
+  {
+    "id": "brickscifi",
+    "name": "Sci-Fi Bricks",
+    "desc": "Futuristic high-tech blocks"
+  },
+  {
+    "id": "brickprison",
+    "name": "Prison Bricks",
+    "desc": "Bars and concrete blocks"
+  },
+  {
+    "id": "brickconstruction",
+    "name": "Construction Bricks",
+    "desc": "Scaffolding and hazard blocks"
+  },
+  {
+    "id": "brickmedieval",
+    "name": "Medieval Bricks",
+    "desc": "Castle stone and wood"
+  },
+  {
+    "id": "brickpipe",
+    "name": "Pipes",
+    "desc": "Metal pipe blocks"
+  },
+  {
+    "id": "brickindustrial",
+    "name": "Industrial Bricks",
+    "desc": "Industrial iron and steel"
+  },
+  {
+    "id": "brickninja",
+    "name": "Ninja Bricks",
+    "desc": "Dojo and bamboo blocks"
+  },
+  {
+    "id": "brickfactory",
+    "name": "Factory Bricks",
+    "desc": "Crates and factory blocks"
+  },
+  {
+    "id": "brickxmas2011",
+    "name": "Christmas 2011 Bricks",
+    "desc": "Holiday gift blocks"
+  },
+  {
+    "id": "bricksummer2011",
+    "name": "Summer 2011 Bricks",
+    "desc": "Summer beach sand blocks"
+  },
+  {
+    "id": "brickhw2011",
+    "name": "Halloween 2011 Bricks",
+    "desc": "Spooky blood stone blocks"
+  },
+  {
+    "id": "brickpirate",
+    "name": "Pirate Pack",
+    "desc": "Planks, treasure chest and canvas"
+  },
+  {
+    "id": "brickstone",
+    "name": "Stone Pack",
+    "desc": "Cobblestone and granite blocks"
+  },
+  {
+    "id": "brickwildwest",
+    "name": "Wild West Pack",
+    "desc": "Saloon awnings and wood"
+  },
+  {
+    "id": "brickplastic",
+    "name": "Plastic Pack",
+    "desc": "Vibrant plastic toy blocks"
+  },
+  {
+    "id": "brickwater",
+    "name": "Water Pack",
+    "desc": "Liquid water blocks"
+  },
+  {
+    "id": "bricksand",
+    "name": "Sand Pack",
+    "desc": "Sandy desert blocks"
+  },
+  {
+    "id": "bricksummer2012",
+    "name": "Summer 2012 Bricks",
+    "desc": "Sunny summer blocks"
+  },
+  {
+    "id": "brickcloud",
+    "name": "Cloud Pack",
+    "desc": "Fluffy white cloud blocks"
+  },
+  {
+    "id": "brickclay",
+    "name": "Clay Backgrounds",
+    "desc": "Soft clay wall backgrounds"
+  },
+  {
+    "id": "brickdesert",
+    "name": "Desert Pack",
+    "desc": "Desert sandstone and dunes"
+  },
+  {
+    "id": "brickneon",
+    "name": "Neon Backgrounds",
+    "desc": "Glowing neon light walls"
+  },
+  {
+    "id": "brickmonster",
+    "name": "Monster Pack",
+    "desc": "Creepy monster blocks"
+  },
+  {
+    "id": "brickfog",
+    "name": "Fog Pack",
+    "desc": "Misty fog atmosphere blocks"
+  },
+  {
+    "id": "brickhw2012",
+    "name": "Halloween 2012 Bricks",
+    "desc": "Haunted mansion blocks"
+  },
+  {
+    "id": "brickchecker",
+    "name": "Checker Blocks",
+    "desc": "Patterned checkerboard blocks"
+  },
+  {
+    "id": "brickjungle",
+    "name": "Jungle Pack",
+    "desc": "Ancient vines and ruins"
+  },
+  {
+    "id": "brickxmas2012",
+    "name": "Christmas 2012 Bricks",
+    "desc": "Festive holiday decorations"
+  },
+  {
+    "id": "bricklava",
+    "name": "Lava Pack",
+    "desc": "Magma and fiery lava"
+  },
+  {
+    "id": "brickswamp",
+    "name": "Swamp Pack",
+    "desc": "Mud and swampy vegetation"
+  },
+  {
+    "id": "brickmarble",
+    "name": "Sparta Marble",
+    "desc": "Ancient Greek marble pillars"
+  },
+  {
+    "id": "brickfarm",
+    "name": "Farm Pack",
+    "desc": "Wheat, corn and wooden fences"
+  },
+  {
+    "id": "brickautumn2014",
+    "name": "Autumn 2014",
+    "desc": "Autumn leaves and acorns"
+  },
+  {
+    "id": "brickxmas2014",
+    "name": "Christmas 2014",
+    "desc": "Winter holiday pack"
+  },
+  {
+    "id": "brickoneway",
+    "name": "One-Way Blocks",
+    "desc": "Pass-through directional platforms"
+  },
+  {
+    "id": "brickval2015",
+    "name": "Valentines 2015",
+    "desc": "Love and heart blocks"
+  },
+  {
+    "id": "brickmagic",
+    "name": "Magic Blocks",
+    "desc": "Enchanted magic blocks"
+  },
+  {
+    "id": "brickeffect",
+    "name": "Effect Blocks",
+    "desc": "Action effect triggers"
+  },
+  {
+    "id": "brickcave",
+    "name": "Cave Backgrounds",
+    "desc": "Underground rock walls"
+  },
+  {
+    "id": "bricksummer2015",
+    "name": "Summer 2015",
+    "desc": "Tropical summer pack"
+  },
+  {
+    "id": "brickenvironment",
+    "name": "Environment Pack",
+    "desc": "Natural environment blocks"
+  },
+  {
+    "id": "brickdomestic",
+    "name": "Domestic Pack",
+    "desc": "Home furniture and decor"
+  },
+  {
+    "id": "brickhw2015",
+    "name": "Halloween 2015",
+    "desc": "Horror theme blocks"
+  },
+  {
+    "id": "brickarctic",
+    "name": "Arctic Pack",
+    "desc": "Snowy ice tundra blocks"
+  },
+  {
+    "id": "brickny2015",
+    "name": "New Year 2015",
+    "desc": "Celebration fireworks blocks"
+  },
+  {
+    "id": "brickice",
+    "name": "Ice Pack",
+    "desc": "Slippery ice blocks"
+  },
+  {
+    "id": "brickfairytale",
+    "name": "Fairytale Pack",
+    "desc": "Enchanted castle blocks"
+  },
+  {
+    "id": "brickspring2016",
+    "name": "Spring 2016",
+    "desc": "Fresh spring flowers"
+  },
+  {
+    "id": "bricksummer2016",
+    "name": "Summer 2016",
+    "desc": "Sunburst summer pack"
+  },
+  {
+    "id": "brickmine",
+    "name": "Mine Pack",
+    "desc": "Mining shaft tracks and ore"
+  },
+  {
+    "id": "brickrestaurant",
+    "name": "Restaurant Pack",
+    "desc": "Diner and kitchen blocks"
+  },
+  {
+    "id": "bricktextile",
+    "name": "Textile Pack",
+    "desc": "Woven fabric wallpapers"
+  },
+  {
+    "id": "brickhw2016",
+    "name": "Halloween 2016",
+    "desc": "Phantom halloween pack"
+  },
+  {
+    "id": "brickxmas2016",
+    "name": "Christmas 2016",
+    "desc": "Santa's workshop blocks"
+  },
+  {
+    "id": "bricktiles",
+    "name": "Tiles Pack",
+    "desc": "Ceramic tile patterns"
+  },
+  {
+    "id": "brickstpatricks2017",
+    "name": "St. Patricks 2017",
+    "desc": "Lucky shamrock blocks"
+  },
+  {
+    "id": "brickhalf",
+    "name": "Half Blocks",
+    "desc": "Half-size block steps"
+  },
+  {
+    "id": "brickwinter2018",
+    "name": "Winter 2018",
+    "desc": "Frosty winter blocks"
+  },
+  {
+    "id": "brickgarden",
+    "name": "Garden Pack",
+    "desc": "Botanical garden flora"
+  },
+  {
+    "id": "brickfireworks",
+    "name": "Fireworks Pack",
+    "desc": "Pyrotechnic burst blocks"
+  },
+  {
+    "id": "bricktoxic",
+    "name": "Toxic Pack",
+    "desc": "Hazardous toxic slime"
+  },
+  {
+    "id": "brickdungeon",
+    "name": "Dungeon Pack",
+    "desc": "Dark dungeon catacombs"
+  },
+  {
+    "id": "brickshadows",
+    "name": "Shadows Pack",
+    "desc": "Shading overlay blocks"
+  },
+  {
+    "id": "brickdark",
+    "name": "Solid Dark Backgrounds",
+    "desc": "Deep dark background walls"
+  },
+  {
+    "id": "bricknormal",
+    "name": "Solid Backgrounds",
+    "desc": "Plain solid color walls"
+  },
+  {
+    "id": "brickpastel",
+    "name": "Pastel Backgrounds",
+    "desc": "Soft pastel background walls"
+  },
+  {
+    "id": "brickcanvas",
+    "name": "Canvas Backgrounds",
+    "desc": "Textured canvas walls"
+  },
+  {
+    "id": "brickcarnival",
+    "name": "Carnival Backgrounds",
+    "desc": "Festive carnival walls"
+  },
+  {
+    "id": "brickwindows",
+    "name": "Colored Windows",
+    "desc": "Stained glass window panes"
+  },
+  {
+    "id": "brickspikesilver",
+    "name": "Silver Spikes",
+    "desc": "Shiny silver hazards"
+  },
+  {
+    "id": "brickspikeblack",
+    "name": "Black Spikes",
+    "desc": "Dark hazard spikes"
+  },
+  {
+    "id": "brickspikered",
+    "name": "Red Spikes",
+    "desc": "Fiery hazard spikes"
+  },
+  {
+    "id": "brickspikegold",
+    "name": "Gold Spikes",
+    "desc": "Golden hazard spikes"
+  },
+  {
+    "id": "brickspikegreen",
+    "name": "Green Spikes",
+    "desc": "Toxic green hazard spikes"
+  },
+  {
+    "id": "brickspikeblue",
+    "name": "Blue Spikes",
+    "desc": "Frosty blue hazard spikes"
+  },
+  {
+    "id": "brickxmas2010",
+    "name": "Christmas 2010 Decor",
+    "desc": "Snowdrifts, trees and fences"
+  },
+  {
+    "id": "brickny2010",
+    "name": "New Year 2010 Lights",
+    "desc": "Hanging festive light bulbs"
+  },
+  {
+    "id": "brickspring2011",
+    "name": "Spring 2011 Package",
+    "desc": "Grass, hedges and flowers"
+  },
+  {
+    "id": "bricktrophy",
+    "name": "Trophies & Prizes",
+    "desc": "Contest winner trophies"
+  },
+  {
+    "id": "brickboost",
+    "name": "Boost Arrows",
+    "desc": "Speed boost propulsion arrows"
+  },
+  {
+    "id": "brickclimbable",
+    "name": "Climbable Ladders",
+    "desc": "Metal, ninja and vine ladders"
+  },
+  {
+    "id": "brickswitches",
+    "name": "Switches & Levers",
+    "desc": "Purple and orange toggle switches"
+  },
+  {
+    "id": "brickdeath",
+    "name": "Death Doors & Gates",
+    "desc": "Hazardous death gates"
+  },
+  {
+    "id": "brickzombie",
+    "name": "Zombie Package",
+    "desc": "Infection effect and gates"
+  },
+  {
+    "id": "brickteams",
+    "name": "Team Doors & Gates",
+    "desc": "Color-coded team doors"
+  },
+  {
+    "id": "bricktimed",
+    "name": "Timed Doors & Gates",
+    "desc": "Automatic timer gates"
+  },
+  {
+    "id": "brickmusic",
+    "name": "Music Notes",
+    "desc": "Piano, drum and guitar note blocks"
+  },
+  {
+    "id": "brickliquids",
+    "name": "Liquid Blocks",
+    "desc": "Water, lava and mud blocks"
+  },
+  {
+    "id": "brickportals",
+    "name": "Portal Blocks",
+    "desc": "Teleportation portals"
+  },
+  {
+    "id": "brickdiamond",
+    "name": "Diamond Block",
+    "desc": "Luxury diamond transformation"
+  },
+  {
+    "id": "brickcake",
+    "name": "Cake Block",
+    "desc": "Party hat transformation"
+  },
+  {
+    "id": "brickhologram",
+    "name": "Hologram Block",
+    "desc": "Sci-fi hologram effect"
+  },
+  {
+    "id": "brickextrakeys",
+    "name": "Cyan, Pink & Yellow Keys",
+    "desc": "Additional key color sets"
+  }
+]

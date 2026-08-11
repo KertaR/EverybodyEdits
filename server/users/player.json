@@ -1,0 +1,32 @@
+{
+  "username": "Player",
+  "password": "user123",
+  "email": "player@local.com",
+  "role": "user",
+  "isAdmin": false,
+  "isStaff": false,
+  "isMod": false,
+  "goldmember": false,
+  "haveSmileyPackage": false,
+  "player_is_beta_member": false,
+  "face": 0,
+  "aura": 0,
+  "auraColor": 0,
+  "badge": "",
+  "gems": 480,
+  "energy": 0,
+  "payVault": [
+    "smileyscarecrow",
+    "smileykungfumaster",
+    "smiley3dglasses",
+    "smileycow"
+  ],
+  "smileyGoldBorder": false,
+  "registeredAt": "2026-08-05T18:53:00.000Z",
+  "lastLogin": "2026-08-05T18:53:00.000Z",
+  "maxEnergy": 200,
+  "itemEnergyProgress": {
+    "smileycow": 250,
+    "smileygraduate": 70
+  }
+}

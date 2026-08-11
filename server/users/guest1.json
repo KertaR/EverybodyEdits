@@ -1,0 +1,23 @@
+{
+  "username": "Guest1",
+  "password": "user123",
+  "email": "",
+  "role": "user",
+  "isAdmin": false,
+  "isStaff": false,
+  "isMod": false,
+  "face": 0,
+  "aura": 0,
+  "auraColor": 0,
+  "badge": "",
+  "smileyGoldBorder": false,
+  "registeredAt": "2026-08-05T13:23:43.880Z",
+  "lastLogin": "2026-08-05T13:23:43.880Z",
+  "player_is_beta_member": false,
+  "goldmember": false,
+  "payVault": [],
+  "gems": 500,
+  "energy": 100,
+  "maxEnergy": 200,
+  "itemEnergyProgress": {}
+}

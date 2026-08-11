@@ -1,0 +1,31 @@
+{
+  "id": "staff",
+  "name": "Staff Team",
+  "description": "Official Everybody Edits Staff & Moderator Crew",
+  "subscribers": 1,
+  "logoWorldId": "",
+  "ranks": [
+    {
+      "name": "Staff Owner",
+      "perms": "111111"
+    },
+    {
+      "name": "Staff Officer",
+      "perms": "110000"
+    },
+    {
+      "name": "Staff Member",
+      "perms": "000000"
+    }
+  ],
+  "members": [
+    {
+      "username": "KertaR",
+      "smiley": "smileysuper",
+      "rank": 0,
+      "faceplate": 0,
+      "isOnline": true
+    }
+  ],
+  "worlds": []
+}

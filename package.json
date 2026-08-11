@@ -1,0 +1,19 @@
+{
+  "name": "everybody-edits-private-server",
+  "version": "1.0.0",
+  "description": "Everybody Edits Private Server & Client Suite",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "build": "powershell -ExecutionPolicy Bypass -File build.ps1",
+    "generate-shop": "node server/shop/generate_items.js",
+    "dev": "powershell -ExecutionPolicy Bypass -File build.ps1; node server/index.js"
+  },
+  "keywords": [
+    "everybodyedits",
+    "privateserver",
+    "flash"
+  ],
+  "author": "KertaR",
+  "license": "MIT"
+}
