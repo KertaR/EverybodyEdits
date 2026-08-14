@@ -712,6 +712,11 @@ package states
                this.universe.update();
                break;
             case LobbyStatePage.ENERGY_SHOP:
+               if(Global.player_is_guest)
+               {
+                  this.setPage(LobbyStatePage.ROOMLIST);
+                  return;
+               }
                if(!this.shop)
                {
                   this.shop = new ShopUI();
@@ -783,6 +788,7 @@ package states
       
       private function handleOpenMainShopRequest(param1:ShopEvent) : void
       {
+         if(Global.player_is_guest) return;
          this.mainshop.showTab(param1.tab);
       }
       

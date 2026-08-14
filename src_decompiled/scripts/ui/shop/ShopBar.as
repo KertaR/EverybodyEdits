@@ -71,11 +71,27 @@ package ui.shop
       public function resize() : void
       {
          bg.width = Config.maxwidth;
+         if(Global.player_is_guest)
+         {
+            shopbtn.visible = false;
+            energy.visible = false;
+            gem.visible = false;
+            username.x = Math.round(bg.width - username.width) - 10;
+            if(crewname.visible)
+            {
+               crewname.div.x = Math.round(crewname.tf_crewname.width) + 5;
+               crewname.x = Math.round(username.x - crewname.width) - 5;
+            }
+            return;
+         }
+         shopbtn.visible = true;
+         energy.visible = true;
+         gem.visible = true;
          shopbtn.x = Math.round(bg.width - shopbtn.width);
          energy.x = Math.round(shopbtn.x - energy.width) - 8;
          gem.div.x = Math.round(gem.gems.x + gem.gems.width) + 8;
          gem.x = Math.round(energy.x - gem.width) - 9;
-         username.x = Math.round(bg.width - username.width) - 10;
+         username.x = Math.round(gem.x - username.width) - 10;
          if(crewname.visible)
          {
             crewname.div.x = Math.round(crewname.tf_crewname.width) + 5;
@@ -149,6 +165,7 @@ package ui.shop
          });
          shopbtn.addEventListener(MouseEvent.CLICK,function():void
          {
+            if(Global.player_is_guest) return;
             (Global.base.state as LobbyState).setPage(LobbyStatePage.ENERGY_SHOP);
          });
          shopbtn.addEventListener(MouseEvent.MOUSE_MOVE,function():void

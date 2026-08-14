@@ -1516,7 +1516,7 @@ package
          {
             var dummyClient:Client = new Client(stage, null, Config.playerio_game_id, "", "", "simpleguest", false, null);
             dummyClient.multiplayer.developmentServer = "127.0.0.1:8184";
-            Global.player_is_guest = false;
+            Global.player_is_guest = true;
             if(callback != null)
             {
                callback(dummyClient);

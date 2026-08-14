@@ -291,6 +291,7 @@ package
          this.isme = param3;
          this.name = param2;
          this.chat = new Chat(param2.indexOf(" ") == -1 ? param2 : "");
+         this.chat.textColor = getNameColor(param2);
          size = 16;
          width = 16;
          height = 16;
@@ -352,6 +353,12 @@ package
       
       public static function getNameColor(param1:String) : uint
       {
+         if(param1 == null || param1 == "") return Config.default_color;
+         var lower:String = param1.toLowerCase();
+         if(lower.indexOf("guest") == 0 || param1.indexOf("-") != -1)
+         {
+            return Config.guest_color;
+         }
          return isAdmin(param1) ? Config.admin_color : (isModerator(param1) ? Config.moderator_color : (isDesigner(param1) ? Config.designer_color : (isCampaignCurator(param1) ? Config.campaign_curator_color : (isPatron(param1) ? getPatronColor(param1) : Config.default_color))));
       }
       

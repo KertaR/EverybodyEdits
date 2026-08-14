@@ -574,6 +574,41 @@ class Server {
     });
   }
 
+  getOnlineGuestCount() {
+    let count = 0;
+    for (const room of this.rooms.values()) {
+      for (const p of room.players.values()) {
+        if (p && p.username && (p.username.toLowerCase().startsWith('guest') || p.username.includes('-'))) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  generateGuestUsername() {
+    const onlineGuestCount = this.getOnlineGuestCount();
+    let n = onlineGuestCount + 1;
+    let candidate = `Guest-${n}`;
+
+    const isUsed = (name) => {
+      for (const room of this.rooms.values()) {
+        for (const p of room.players.values()) {
+          if (p && p.username && p.username.toLowerCase() === name.toLowerCase()) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    while (isUsed(candidate)) {
+      n++;
+      candidate = `Guest-${n}`;
+    }
+    return candidate;
+  }
+
   handleMessage(socket, msg, player, room, setPlayerRoom) {
     console.log(`[Packet Recv] ${msg.type} from ${player ? player.username : 'unauth'}:`, msg.values);
 
@@ -596,11 +631,13 @@ class Server {
         room = this.getOrCreateRoom(roomId);
         const playerId = room.nextPlayerId++;
 
-        let username = 'Guest' + playerId;
+        let username;
         if (connectUserId && connectUserId.startsWith('simple') && connectUserId !== 'simpleguest') {
           username = connectUserId.substring(6);
         } else if (connectUserId && connectUserId !== 'simpleguest') {
           username = connectUserId;
+        } else {
+          username = this.generateGuestUsername();
         }
 
         let userData = this.userManager.getUser(username);
