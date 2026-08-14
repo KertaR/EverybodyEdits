@@ -867,10 +867,108 @@ package
                 return;
              }
 
+              if(name == "getProfileObject")
+              {
+                 var pUser:String = (args.length > 0 && args[0] != null && String(args[0]) != "") ? String(args[0]) : "Admin";
+                 if(pUser.indexOf("simple") == 0 && pUser != "simpleguest") pUser = pUser.substr(6);
+                 var profLoader:URLLoader = new URLLoader();
+                 var profReq:URLRequest = new URLRequest("http://localhost:8080/api/profile?username=" + encodeURIComponent(pUser));
+                 profLoader.addEventListener(Event.COMPLETE, function(e:Event):void
+                 {
+                    try
+                    {
+                       var profData:Object = JSON.parse(String(profLoader.data));
+                       var mProf:Message = new Message("getProfileObject");
+                       mProf.add(String(profData.status || "public"));
+                       mProf.add(String(profData.key || pUser.toLowerCase()));
+                       mProf.add(String(profData.name || pUser));
+                       mProf.add(String(profData.oldname || ""));
+                       mProf.add(int(profData.smiley != null ? profData.smiley : 0));
+                       mProf.add(int(profData.maxEnergy != null ? profData.maxEnergy : 200));
+                       mProf.add(Boolean(profData.isOldBeta != null ? profData.isOldBeta : true));
+                       mProf.add(Boolean(profData.isAdmin != null ? profData.isAdmin : true));
+                       mProf.add(Boolean(profData.isGold != null ? profData.isGold : true));
+                       mProf.add(Number(profData.goldremain || 0));
+                       mProf.add(Number(profData.goldtime || 0));
+                       mProf.add(String(profData.room0 || "PW_default"));
+                       mProf.add(String(profData.betaonlyroom || ""));
+                       var rIds:String = (profData.roomids as Array) ? (profData.roomids as Array).join("᎙") : "";
+                       var rNames:String = (profData.roomnames as Array) ? (profData.roomnames as Array).join("᎙") : "";
+                       var rPlays:String = (profData.roomplays as Array) ? (profData.roomplays as Array).join("᎙") : "";
+                       mProf.add(rIds);
+                       mProf.add(rNames);
+                       mProf.add(rPlays);
+                       mProf.add(0); // timesCount = 0
+                       if(callback != null) callback(mProf);
+                    }
+                    catch(eErr:Error)
+                    {
+                       var mErrProf:Message = new Message("getProfileObject");
+                       mErrProf.add("public");
+                       mErrProf.add(pUser.toLowerCase());
+                       mErrProf.add(pUser);
+                       mErrProf.add("");
+                       mErrProf.add(0);
+                       mErrProf.add(200);
+                       mErrProf.add(true);
+                       mErrProf.add(true);
+                       mErrProf.add(true);
+                       mErrProf.add(0);
+                       mErrProf.add(0);
+                       mErrProf.add("PW_default");
+                       mErrProf.add("");
+                       mErrProf.add("PW_default");
+                       mErrProf.add("Home World");
+                       mErrProf.add("1");
+                       mErrProf.add(0);
+                       if(callback != null) callback(mErrProf);
+                    }
+                 });
+                 profLoader.addEventListener(IOErrorEvent.IO_ERROR, function(e:Event):void
+                 {
+                    var mErrProf2:Message = new Message("getProfileObject");
+                    mErrProf2.add("public");
+                    mErrProf2.add(pUser.toLowerCase());
+                    mErrProf2.add(pUser);
+                    mErrProf2.add("");
+                    mErrProf2.add(0);
+                    mErrProf2.add(200);
+                    mErrProf2.add(true);
+                    mErrProf2.add(true);
+                    mErrProf2.add(true);
+                    mErrProf2.add(0);
+                    mErrProf2.add(0);
+                    mErrProf2.add("PW_default");
+                    mErrProf2.add("");
+                    mErrProf2.add("PW_default");
+                    mErrProf2.add("Home World");
+                    mErrProf2.add("1");
+                    mErrProf2.add(0);
+                    if(callback != null) callback(mErrProf2);
+                 });
+                 profLoader.load(profReq);
+                 return;
+              }
+
+              if(name == "getCrews")
+              {
+                 var mUserCrews:Message = new Message("getCrews");
+                 if(callback != null) callback(mUserCrews);
+                 return;
+              }
+
              if(callback != null)
              {
                 var mDummy:Message = new Message("r");
-                if(name == "getLobbyProperties")
+                 if(name == "getProfile")
+                 {
+                    mDummy.add(false); // hideProfile = false
+                 }
+                 else if(name == "getBlockStatus")
+                 {
+                    mDummy.add(false); // blockInvites = false
+                 }
+                else if(name == "getLobbyProperties")
                 {
                    mDummy.add(false);
                    mDummy.add(-1);

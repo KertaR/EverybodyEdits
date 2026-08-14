@@ -6,6 +6,7 @@ const net = require('net');
 const path = require('path');
 const fs = require('fs');
 const http = require('http');
+const url = require('url');
 const { PlayerIOMessage, PlayerIOProtocol } = require('./PlayerIOProtocol');
 const World = require('./World');
 const Player = require('./Player');
@@ -187,17 +188,127 @@ class Server {
           return;
         }
 
-        // API Endpoint: Get User Data by Name (reads directly from server/users/<name>.json)
+        // API Endpoint: Get User Data by Name
         if (req.method === 'GET' && reqPath.startsWith('/api/user/')) {
           const username = decodeURIComponent(reqPath.substring('/api/user/'.length));
-          const user = this.userManager.getUser(username);
-          if (user) {
-            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-            res.end(JSON.stringify({ success: true, user }));
-          } else {
-            res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-            res.end(JSON.stringify({ success: false, error: 'User not found' }));
+          let user = this.userManager.getUser(username);
+          if (!user) {
+            user = {
+              username: username,
+              gems: 500,
+              energy: 100,
+              maxEnergy: 200,
+              face: 0,
+              isAdmin: false,
+              isGold: true,
+              payVault: []
+            };
           }
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ success: true, user }));
+          return;
+        }
+
+        // API Endpoint: Get Profile Data by Username
+        if (req.method === 'GET' && (reqPath === '/api/profile' || reqPath.startsWith('/api/profile/'))) {
+          const parsedUrl = url.parse(req.url, true);
+          let username = parsedUrl.query.username || (reqPath.startsWith('/api/profile/') ? decodeURIComponent(reqPath.substring('/api/profile/'.length)) : '');
+          if (!username) username = 'Admin';
+
+          let user = this.userManager.getUser(username);
+          if (!user) {
+            user = {
+              username: username,
+              gems: 500,
+              energy: 100,
+              maxEnergy: 200,
+              face: 0,
+              isAdmin: false,
+              isGold: true,
+              payVault: []
+            };
+          }
+
+          // Find worlds owned by this user
+          const roomids = [];
+          const roomnames = [];
+          const roomplays = [];
+          try {
+            const files = fs.readdirSync(this.worldsDir).filter(f => f.endsWith('.json'));
+            for (const file of files) {
+              try {
+                const wData = JSON.parse(fs.readFileSync(path.join(this.worldsDir, file), 'utf8'));
+                if (wData && wData.owner && wData.owner.toLowerCase() === username.toLowerCase()) {
+                  roomids.push(wData.id || file.replace('.json', ''));
+                  roomnames.push(wData.title || wData.id);
+                  roomplays.push(String(wData.plays || 1));
+                }
+              } catch (e) {}
+            }
+          } catch (e) {}
+
+          if (roomids.length === 0) {
+            roomids.push('PW_default');
+            roomnames.push('Home World');
+            roomplays.push('1');
+          }
+
+          const profileData = {
+            status: 'public',
+            key: user.username.toLowerCase(),
+            name: user.username,
+            oldname: '',
+            smiley: user.face !== undefined ? user.face : 0,
+            maxEnergy: user.maxEnergy || 200,
+            isOldBeta: true,
+            isAdmin: Boolean(user.isAdmin || user.role === 'admin'),
+            isGold: Boolean(user.isGold !== undefined ? user.isGold : true),
+            goldremain: 0,
+            goldtime: 0,
+            room0: roomids[0] || 'PW_default',
+            betaonlyroom: '',
+            roomids: roomids,
+            roomnames: roomnames,
+            roomplays: roomplays,
+            crews: []
+          };
+
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify(profileData));
+          return;
+        }
+
+        // API Endpoint: Get World Metadata by ID
+        if (req.method === 'GET' && (reqPath === '/api/world' || reqPath.startsWith('/api/world/'))) {
+          const parsedUrl = url.parse(req.url, true);
+          let worldId = parsedUrl.query.id || (reqPath.startsWith('/api/world/') ? decodeURIComponent(reqPath.substring('/api/world/'.length)) : '');
+          if (!worldId) worldId = 'PW_default';
+
+          const worldFilePath = path.join(this.worldsDir, `${worldId}.json`);
+          let worldData = {
+            id: worldId,
+            title: worldId,
+            owner: 'Admin',
+            plays: 1,
+            likes: 0,
+            favorites: 0,
+            worlddata: [0]
+          };
+
+          if (fs.existsSync(worldFilePath)) {
+            try {
+              const data = JSON.parse(fs.readFileSync(worldFilePath, 'utf8'));
+              worldData.title = data.title || worldId;
+              worldData.owner = data.owner || 'Admin';
+              worldData.plays = data.plays || 1;
+              worldData.likes = data.likes || 0;
+              worldData.favorites = data.favorites || 0;
+              worldData.worlddata = [0];
+            } catch (e) {}
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify(worldData));
           return;
         }
 

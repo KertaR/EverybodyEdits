@@ -50,14 +50,15 @@ package playerio
       {
          var callback:Function = param1;
          var errorHandler:Function = param2;
-         _achievementsRefresh(_version,function(param1:String, param2:Array):void
+         _version = "1.0";
+         if(_myAchievements == null)
          {
-            refreshAchiemeventsHelper(param1,param2);
-            if(callback != null)
-            {
-               callback();
-            }
-         },errorHandler);
+            _myAchievements = [];
+         }
+         if(callback != null)
+         {
+            callback();
+         }
       }
       
       public function load(param1:Array, param2:Function = null, param3:Function = null) : void

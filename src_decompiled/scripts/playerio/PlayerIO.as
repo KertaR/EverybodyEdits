@@ -45,11 +45,15 @@ package playerio
       public static function authenticate(param1:Stage, param2:String, param3:String, param4:Object, param5:* = null, param6:* = null, param7:* = null) : void
       {
          var cbAuth:Function = (param6 is Function ? param6 : (param5 is Function ? param5 : null)) as Function;
-         var email:String = (param4 && (param4.email || param4.username)) ? String(param4.email || param4.username) : "Guest";
+         var email:String = (param4 && (param4.email || param4.username || param4.userId)) ? String(param4.email || param4.username || param4.userId) : "Guest";
          var uname:String = email;
          if(uname.indexOf("@") != -1)
          {
             uname = uname.split("@")[0];
+         }
+         if(uname.indexOf("simple") == 0 && uname != "simpleguest")
+         {
+            uname = uname.substr(6);
          }
          if(uname == "") uname = "Guest";
          try

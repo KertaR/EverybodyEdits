@@ -68,17 +68,17 @@ package playerio
          {
             var loader:URLLoader = new URLLoader();
             var targetUsername:String = "";
-            if(Global.playerObject != null && Global.playerObject.name != null && Global.playerObject.name != "" && Global.playerObject.name.toLowerCase() != "guest")
+            if(_client && _client.connectUserId && _client.connectUserId != "simpleguest")
+            {
+               targetUsername = _client.connectUserId;
+            }
+            else if(Global.playerObject != null && Global.playerObject.name != null && Global.playerObject.name != "" && Global.playerObject.name.toLowerCase() != "guest")
             {
                targetUsername = Global.playerObject.name;
             }
             else if(Global.currentUsername != null && Global.currentUsername != "")
             {
                targetUsername = Global.currentUsername;
-            }
-            else if(_client && _client.connectUserId && _client.connectUserId != "simpleguest")
-            {
-               targetUsername = _client.connectUserId;
             }
             if(targetUsername == "") return;
 
@@ -95,7 +95,8 @@ package playerio
                   if(res.success && res.user)
                   {
                      _coins = res.user.gems != null ? Number(res.user.gems) : 500;
-                     if(Global.playerObject != null)
+                     var isSelf:Boolean = Global.playerObject != null && Global.playerObject.name != null && Global.playerObject.name.toLowerCase() == targetUsername.toLowerCase();
+                     if(isSelf && Global.playerObject != null)
                      {
                         Global.playerObject.gems = _coins;
                         if(res.user.energy != null) Global.playerObject.energy = int(res.user.energy);

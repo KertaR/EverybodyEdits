@@ -1,5 +1,9 @@
 package playerio
 {
+   import flash.events.Event;
+   import flash.events.IOErrorEvent;
+   import flash.net.URLLoader;
+   import flash.net.URLRequest;
    import playerio.generated.BigDB;
    import playerio.generated.messages.BigDBChangeset;
    import playerio.generated.messages.BigDBObject;
@@ -22,24 +26,52 @@ package playerio
          var key:String = param2;
          var callback:Function = param3;
          var errorHandler:Function = param4;
-         if(true)
+         if(table == "Worlds")
          {
-            if(callback != null)
+            var wLoader:URLLoader = new URLLoader();
+            var wReq:URLRequest = new URLRequest("http://localhost:8080/api/world?id=" + encodeURIComponent(key));
+            wLoader.addEventListener(Event.COMPLETE, function(e:Event):void
             {
-               callback(new DatabaseObject(table, key, "", 0, false, null));
-            }
+               try
+               {
+                  var res:Object = JSON.parse(String(wLoader.data));
+                  var dbo:DatabaseObject = new DatabaseObject("Worlds", key, "", 0, false, null);
+                  dbo.name = String(res.title || key);
+                  dbo.plays = int(res.plays || 1);
+                  dbo.likes = int(res.likes || 0);
+                  dbo.favorites = int(res.favorites || 0);
+                  dbo.owner = String(res.owner || "");
+                  dbo.worlddata = [0];
+                  dbo.visible = true;
+                  if(callback != null) callback(dbo);
+               }
+               catch(err:Error)
+               {
+                  var dboFallback:DatabaseObject = new DatabaseObject("Worlds", key, "", 0, false, null);
+                  dboFallback.name = key;
+                  dboFallback.plays = 1;
+                  dboFallback.worlddata = [0];
+                  dboFallback.visible = true;
+                  if(callback != null) callback(dboFallback);
+               }
+            });
+            wLoader.addEventListener(IOErrorEvent.IO_ERROR, function(e:Event):void
+            {
+               var dboFallback2:DatabaseObject = new DatabaseObject("Worlds", key, "", 0, false, null);
+               dboFallback2.name = key;
+               dboFallback2.plays = 1;
+               dboFallback2.worlddata = [0];
+               dboFallback2.visible = true;
+               if(callback != null) callback(dboFallback2);
+            });
+            wLoader.load(wReq);
             return;
          }
-         var db:BigDBObjectId = new BigDBObjectId();
-         db.table = table;
-         db.keys = [key];
-         _loadObjects([db],function(param1:Array):void
+         if(callback != null)
          {
-            if(callback != null)
-            {
-               callback(Converter.toDatabaseObject(table,param1[0],false,save));
-            }
-         },errorHandler);
+            callback(new DatabaseObject(table, key, "", 0, false, null));
+         }
+         return;
       }
       
       public function loadOrCreate(param1:String, param2:String, param3:Function = null, param4:Function = null) : void
