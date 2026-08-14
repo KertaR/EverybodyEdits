@@ -717,15 +717,12 @@ package
          });
          connection.addMessageHandler("lostaccess",function(param1:Message):void
          {
-            if(!Bl.data.owner)
-            {
-               toggleMore(false);
-               toggleGodMode(false);
-               Bl.data.canEdit = false;
-               Bl.data.canToggleGodMode = false;
-               auraMenu.redraw();
-               configureInterface();
-            }
+            toggleMore(false);
+            toggleGodMode(false);
+            Bl.data.canEdit = false;
+            Bl.data.canToggleGodMode = false;
+            auraMenu.redraw();
+            configureInterface();
          });
          connection.addMessageHandler("toggleOwner",function(param1:Message, param2:Boolean):void
          {

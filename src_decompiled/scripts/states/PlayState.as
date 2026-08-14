@@ -613,15 +613,23 @@ package states
          this.connection.addMessageHandler("access",function(param1:Message):void
          {
             player.canEdit = true;
+            Bl.data.canEdit = true;
+            if(Global.base.ui2instance)
+            {
+               Global.base.ui2instance.configureInterface();
+            }
          });
          this.connection.addMessageHandler("lostaccess",function(param1:Message):void
          {
-            if(!Bl.data.owner)
-            {
-               player.isInGodMode = false;
-            }
+            player.isInGodMode = false;
             player.canEdit = false;
             player.canToggleGodMode = false;
+            Bl.data.canEdit = false;
+            Bl.data.canToggleGodMode = false;
+            if(Global.base.ui2instance)
+            {
+               Global.base.ui2instance.configureInterface();
+            }
          });
          this.connection.addMessageHandler("editRights",function(param1:Message, param2:int, param3:Boolean):void
          {
@@ -634,6 +642,21 @@ package states
             if(!param3)
             {
                _loc4_.canToggleGodMode = false;
+            }
+            if(param2 == myid)
+            {
+               player.canEdit = param3;
+               Bl.data.canEdit = param3;
+               if(!param3)
+               {
+                  player.isInGodMode = false;
+                  player.canToggleGodMode = false;
+                  Bl.data.canToggleGodMode = false;
+               }
+               if(Global.base.ui2instance)
+               {
+                  Global.base.ui2instance.configureInterface();
+               }
             }
          });
          this.connection.addMessageHandler("mod",function(param1:Message, param2:int, param3:Boolean):void

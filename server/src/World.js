@@ -11,6 +11,7 @@ class World {
     this.title = 'Private World';
     this.owner = 'Admin';
     this.ownerId = 'admin_1';
+    this.editKey = '';
     this.width = width;
     this.height = height;
     this.backgroundColor = 0x000000;
@@ -166,6 +167,7 @@ class World {
       title: this.title,
       owner: this.owner,
       ownerId: this.ownerId,
+      editKey: this.editKey || '',
       width: this.width,
       height: this.height,
       backgroundColor: this.backgroundColor,
@@ -188,6 +190,7 @@ class World {
       this.title = data.title || this.title;
       this.owner = data.owner || this.owner;
       this.ownerId = data.ownerId || this.ownerId;
+      this.editKey = data.editKey || '';
       this.width = data.width || 200;
       this.height = data.height || 200;
       this.backgroundColor = data.backgroundColor || 0;

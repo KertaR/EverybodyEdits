@@ -98,13 +98,17 @@ class Server {
     return this.NPC_BLOCKS.has(blockId);
   }
 
-  getOrCreateRoom(roomId) {
+  getOrCreateRoom(roomId, creatorUsername = 'Admin') {
     if (!this.rooms.has(roomId)) {
       const world = new World(roomId);
       const worldFile = path.join(this.worldsDir, `${roomId}.json`);
       if (fs.existsSync(worldFile)) {
         world.loadFromFile(worldFile);
       } else {
+        if (creatorUsername && !creatorUsername.toLowerCase().startsWith('guest')) {
+          world.owner = creatorUsername;
+          world.ownerId = creatorUsername;
+        }
         world.saveToFile(this.worldsDir);
       }
 
@@ -114,7 +118,7 @@ class Server {
         players: new Map(),
         nextPlayerId: 1
       });
-      console.log(`[Room] Created room: ${roomId}`);
+      console.log(`[Room] Created room: ${roomId}, owner: ${world.owner}`);
     }
     return this.rooms.get(roomId);
   }
@@ -420,12 +424,14 @@ class Server {
               let plays = 1;
               let likes = 0;
               let favorites = 0;
+              let needskey = false;
               try {
                 const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
                 if (data.title) title = data.title;
                 if (data.owner) owner = data.owner;
                 if (data.width) width = data.width;
                 if (data.height) height = data.height;
+                if (data.editKey && data.editKey.length > 0) needskey = true;
               } catch(e) {}
               const room = this.rooms.get(worldId);
               const onlineUsers = room ? room.players.size : 0;
@@ -438,7 +444,8 @@ class Server {
                 plays,
                 likes,
                 favorites,
-                onlineUsers
+                onlineUsers,
+                needskey
               };
             });
             res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
@@ -628,9 +635,6 @@ class Server {
           }
         }
 
-        room = this.getOrCreateRoom(roomId);
-        const playerId = room.nextPlayerId++;
-
         let username;
         if (connectUserId && connectUserId.startsWith('simple') && connectUserId !== 'simpleguest') {
           username = connectUserId.substring(6);
@@ -645,6 +649,9 @@ class Server {
           userData = this.userManager.register(username, 'user123');
         }
 
+        room = this.getOrCreateRoom(roomId, username);
+        const playerId = room.nextPlayerId++;
+
         player = new Player(playerId, socket, userData.username);
         player.face = userData.face !== undefined ? userData.face : 0;
         player.aura = userData.aura !== undefined ? userData.aura : 0;
@@ -653,17 +660,20 @@ class Server {
         player.smileyGoldBorder = userData.smileyGoldBorder !== undefined ? userData.smileyGoldBorder : true;
         player.joinTimestamp = Date.now();
 
+        const isWorldOwner = Boolean(room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
         const isAdmin = Boolean(userData && (userData.isAdmin || userData.role === 'admin'));
         player.isAdmin = isAdmin;
-        player.isMod = isAdmin || Boolean(userData.isMod);
-        player.canEdit = true;
-        player.isOwner = true;
-        player.isGod = true;
-        player.canToggleGodMode = true;
+        player.isMod = isAdmin || Boolean(userData && userData.isMod);
+        player.isOwner = isWorldOwner || isAdmin;
+
+        const hasValidEditKey = Boolean(room.world.editKey && editKey && room.world.editKey === editKey);
+        player.canEdit = isWorldOwner || isAdmin || hasValidEditKey;
+        player.isGod = player.canEdit;
+        player.canToggleGodMode = player.canEdit;
         room.players.set(player.id, player);
         setPlayerRoom(player, room);
 
-        console.log(`[Join] Player ${player.username} (ID: ${player.id}) joined room ${room.id} with editKey='${editKey}'`);
+        console.log(`[Join] Player ${player.username} (ID: ${player.id}, canEdit: ${player.canEdit}, isOwner: ${player.isOwner}) joined room ${room.id} with editKey='${editKey}'`);
 
         // Send 'playerio.joinresult' to tell the client join was successful
         const joinResultMsg = new PlayerIOMessage('playerio.joinresult');
@@ -768,6 +778,10 @@ class Server {
 
       case 'b': {
         if (!player || !room) return;
+        if (!player.canEdit) {
+          console.log(`[Block Place Blocked] Player ${player.username} does not have edit rights.`);
+          return;
+        }
         // Packet: b, layer, x, y, blockId, [extra args]
         const layer = msg.getInt(0);
         const x = msg.getInt(1);
@@ -856,13 +870,222 @@ class Server {
         break;
       }
 
+      case 'key': {
+        if (!player || !room) return;
+        if (!player.isOwner && !player.isAdmin) {
+          player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to change the room edit key.']));
+          return;
+        }
+        const newKey = msg.getString(0) || '';
+        room.world.editKey = newKey;
+        room.world.saveToFile(this.worldsDir);
+        console.log(`[World Key] Player ${player.username} updated editKey to '${newKey}' for room ${room.id}`);
+        player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Room edit key updated and saved.']));
+        break;
+      }
+
+      case 'access': {
+        if (!player || !room) return;
+        const key = msg.getString(0) || '';
+        if (room.world.editKey && room.world.editKey !== key) {
+          player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Invalid edit key.']));
+          return;
+        }
+        player.canEdit = true;
+        player.send(new PlayerIOMessage('access'));
+        this.broadcastToRoom(room, new PlayerIOMessage('editRights', [player.id, true]));
+        this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} gained edit rights.`]));
+        break;
+      }
+
       case 'say': {
         if (!player || !room) return;
+        const text = msg.getString(0) || '';
+
+        // Handle chat commands starting with /
+        if (text.startsWith('/')) {
+          console.log(`[Command] ${player.username} executed: ${text}`);
+          const parts = text.slice(1).trim().split(/\s+/);
+          const cmd = parts[0].toLowerCase();
+          const args = parts.slice(1);
+
+          if (cmd === 'removeedit' || cmd === 'redit') {
+            let targetPlayer = null;
+            if (args.length === 0 || args[0].toLowerCase() === player.username.toLowerCase()) {
+              targetPlayer = player;
+            } else {
+              const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+              if (!isOwnerOrStaff) {
+                player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to remove edit rights from others.']));
+                return;
+              }
+              const targetName = args[0].toLowerCase();
+              for (const p of room.players.values()) {
+                if (p && p.username && p.username.toLowerCase() === targetName) {
+                  targetPlayer = p;
+                  break;
+                }
+              }
+            }
+
+            if (!targetPlayer) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Player '${args[0]}' not found in this room.`]));
+              return;
+            }
+
+            targetPlayer.canEdit = false;
+            targetPlayer.isGod = false;
+            targetPlayer.send(new PlayerIOMessage('lostaccess'));
+            this.broadcastToRoom(room, new PlayerIOMessage('editRights', [targetPlayer.id, false]));
+            this.broadcastToRoom(room, new PlayerIOMessage('god', [targetPlayer.id, false]));
+
+            if (targetPlayer.id === player.id) {
+              this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} removed their edit rights.`]));
+            } else {
+              this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} removed edit rights from ${targetPlayer.username}.`]));
+            }
+            return;
+          }
+
+          if (cmd === 'giveedit' || cmd === 'gedit') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to give edit rights.']));
+              return;
+            }
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /giveedit <username>']));
+              return;
+            }
+            const targetName = args[0].toLowerCase();
+            let targetPlayer = null;
+            for (const p of room.players.values()) {
+              if (p && p.username && p.username.toLowerCase() === targetName) {
+                targetPlayer = p;
+                break;
+              }
+            }
+            if (!targetPlayer) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Player '${args[0]}' not found in this room.`]));
+              return;
+            }
+
+            targetPlayer.canEdit = true;
+            targetPlayer.send(new PlayerIOMessage('access'));
+            this.broadcastToRoom(room, new PlayerIOMessage('editRights', [targetPlayer.id, true]));
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} gave edit rights to ${targetPlayer.username}.`]));
+            return;
+          }
+
+          if (cmd === 'givegod') {
+            let targetPlayer = null;
+            if (args.length === 0 || args[0].toLowerCase() === player.username.toLowerCase()) {
+              targetPlayer = player;
+              const hasGodPermission = player.isOwner || player.isAdmin || player.isMod || player.canEdit || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+              if (!hasGodPermission) {
+                player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to enable god mode.']));
+                return;
+              }
+            } else {
+              const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+              if (!isOwnerOrStaff) {
+                player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to give god mode to others.']));
+                return;
+              }
+              const targetName = args[0].toLowerCase();
+              for (const p of room.players.values()) {
+                if (p && p.username && p.username.toLowerCase() === targetName) {
+                  targetPlayer = p;
+                  break;
+                }
+              }
+            }
+
+            if (!targetPlayer) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Player '${args[0]}' not found in this room.`]));
+              return;
+            }
+
+            targetPlayer.canToggleGodMode = true;
+            targetPlayer.isGod = true;
+            this.broadcastToRoom(room, new PlayerIOMessage('toggleGod', [targetPlayer.id, true]));
+            this.broadcastToRoom(room, new PlayerIOMessage('god', [targetPlayer.id, true]));
+
+            if (targetPlayer.id === player.id) {
+              this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} enabled god mode.`]));
+            } else {
+              this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} gave god mode to ${targetPlayer.username}.`]));
+            }
+            return;
+          }
+
+          if (cmd === 'removegod') {
+            let targetPlayer = null;
+            if (args.length === 0 || args[0].toLowerCase() === player.username.toLowerCase()) {
+              targetPlayer = player;
+            } else {
+              const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+              if (!isOwnerOrStaff) {
+                player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to remove god mode from others.']));
+                return;
+              }
+              const targetName = args[0].toLowerCase();
+              for (const p of room.players.values()) {
+                if (p && p.username && p.username.toLowerCase() === targetName) {
+                  targetPlayer = p;
+                  break;
+                }
+              }
+            }
+
+            if (!targetPlayer) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Player '${args[0]}' not found in this room.`]));
+              return;
+            }
+
+            targetPlayer.canToggleGodMode = targetPlayer.canEdit;
+            targetPlayer.isGod = false;
+            this.broadcastToRoom(room, new PlayerIOMessage('god', [targetPlayer.id, false]));
+            this.broadcastToRoom(room, new PlayerIOMessage('toggleGod', [targetPlayer.id, targetPlayer.canToggleGodMode]));
+
+            if (targetPlayer.id === player.id) {
+              this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} disabled god mode.`]));
+            } else {
+              this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} removed god mode from ${targetPlayer.username}.`]));
+            }
+            return;
+          }
+
+          if (cmd === 'clear') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to clear the world.']));
+              return;
+            }
+            room.world.clear();
+            const clearMsg = new PlayerIOMessage('clear');
+            this.broadcastToRoom(room, clearMsg);
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} cleared the world.`]));
+            return;
+          }
+
+          if (cmd === 'god') {
+            player.isGod = !player.isGod;
+            const godMsg = new PlayerIOMessage('god', [player.id, player.isGod]);
+            this.broadcastToRoom(room, godMsg);
+            return;
+          }
+
+          if (cmd === 'help') {
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Available commands: /removeedit [user], /giveedit <user>, /givegod [user], /removegod [user], /clear, /god, /save, /help']));
+            return;
+          }
+        }
+
         if (player.username.toLowerCase().startsWith('guest')) {
           console.log(`[Chat Blocked] Guest ${player.username} attempted to chat.`);
           return;
         }
-        const text = msg.getString(0);
         console.log(`[Chat] ${player.username}: ${text}`);
 
         // Broadcast 'say': playerId, text

@@ -128,6 +128,7 @@ package playerio
                             var item:Object = arr[i];
                             var rName:String = String(item.title || item.id);
                             var rOwner:String = String(item.owner || (Global.playerObject != null && Global.playerObject.name != null ? Global.playerObject.name : ""));
+                            var isMine:Boolean = Global.playerObject != null && Global.playerObject.name != null && item.owner != null && String(item.owner).toLowerCase() == Global.playerObject.name.toLowerCase();
                             var r:RoomInfo = new RoomInfo(item.id, "PW", int(item.onlineUsers || 0), {
                                "name": rName,
                                "owner": rOwner,
@@ -135,7 +136,8 @@ package playerio
                                "Likes": String(item.likes || 0),
                                "Favorites": String(item.favorites || 0),
                                "size": String((item.width || 200) + "x" + (item.height || 200)),
-                               "myworld": (Global.playerObject != null && Global.playerObject.name != null && item.owner != null && String(item.owner).toLowerCase() == Global.playerObject.name.toLowerCase()) || item.id == "PW_default"
+                               "needskey": Boolean(item.needskey),
+                               "myworld": isMine
                             });
                             rooms.push(r);
                          }

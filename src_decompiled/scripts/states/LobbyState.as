@@ -362,13 +362,7 @@ package states
                   {
                      if(!(StringUtil.trim(_loc3_.data.name) == "" || _loc3_.data.name.length > 60))
                      {
-                        if(_loc3_.data.plays < 1000000)
-                        {
-                           if(_loc3_.onlineUsers > 0 || _loc3_.data.myworld || _loc3_.data.inFavorites || _loc3_.data.isHistory)
-                           {
-                              _loc1_.push(_loc3_);
-                           }
-                        }
+                        _loc1_.push(_loc3_);
                      }
                   }
                }
