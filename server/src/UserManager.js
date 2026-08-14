@@ -16,6 +16,13 @@ class UserManager {
       const files = fs.readdirSync(this.usersDir);
       for (const file of files) {
         if (file.endsWith('.json')) {
+          if (file.toLowerCase().startsWith('guest')) {
+            try {
+              fs.unlinkSync(path.join(this.usersDir, file));
+              console.log(`[UserManager] Removed guest file: ${file}`);
+            } catch (e) {}
+            continue;
+          }
           const filePath = path.join(this.usersDir, file);
           const data = fs.readFileSync(filePath, 'utf8');
           const user = JSON.parse(data);
@@ -43,6 +50,9 @@ class UserManager {
       const user = this.getUser(username);
       if (!user) return;
       const key = user.username.toLowerCase();
+      if (key.startsWith('guest') || key.includes('-')) {
+        return;
+      }
       const filePath = path.join(this.usersDir, `${key}.json`);
       fs.writeFileSync(filePath, JSON.stringify(user, null, 2), 'utf8');
     } catch (err) {
@@ -63,6 +73,7 @@ class UserManager {
     if (!username) return null;
     const key = username.trim().toLowerCase();
     let user = this.users.get(key);
+    const isGuest = key.startsWith('guest') || key.includes('-');
     if (!user) {
       user = {
         username: username.trim(),
@@ -87,10 +98,14 @@ class UserManager {
         registeredAt: new Date().toISOString(),
         lastLogin: new Date().toISOString()
       };
-      this.users.set(key, user);
-      this.saveUser(user.username);
-      console.log(`[UserManager] Registered and saved user file: users/${key}.json`);
-    } else {
+      if (!isGuest) {
+        this.users.set(key, user);
+        this.saveUser(user.username);
+        console.log(`[UserManager] Registered and saved user file: users/${key}.json`);
+      } else {
+        console.log(`[UserManager] Temporary guest session created for ${user.username} (not saved to disk)`);
+      }
+    } else if (!isGuest) {
       user.lastLogin = new Date().toISOString();
       if (password) user.password = password;
       if (email) user.email = email;
