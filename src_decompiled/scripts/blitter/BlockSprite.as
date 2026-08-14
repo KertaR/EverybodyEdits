@@ -84,7 +84,8 @@ package blitter
       override public function drawPoint(param1:BitmapData, param2:Point, param3:int = 0) : void
       {
          this.currentImage = this.getImage(shadow);
-         this.currentRect = shadow ? new Rectangle(param3 * 18,0,18,18) : new Rectangle((offset + param3) * 16,0,16,16);
+         var safeFrame:int = this.frames > 0 ? (param3 % this.frames + this.frames) % this.frames : param3;
+         this.currentRect = shadow ? new Rectangle(safeFrame * 18,0,18,18) : new Rectangle((offset + safeFrame) * 16,0,16,16);
          param1.copyPixels(this.currentImage,this.currentRect,param2);
       }
    }

@@ -592,9 +592,16 @@ package items
       
       public static function isBlockRotateable(param1:int) : Boolean
       {
-         switch(param1)
-         {
-            case GLOWY_LINE_BLUE_STRAIGHT:
+          switch(param1)
+          {
+             case SPIKE:
+             case SPIKE_SILVER:
+             case SPIKE_BLACK:
+             case SPIKE_RED:
+             case SPIKE_GOLD:
+             case SPIKE_GREEN:
+             case SPIKE_BLUE:
+             case GLOWY_LINE_BLUE_STRAIGHT:
             case GLOWYLINE_BLUE_SLOPE:
             case GLOWY_LINE_GREEN_SLOPE:
             case GLOWY_LINE_GREEN_STRAIGHT:

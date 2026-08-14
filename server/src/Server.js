@@ -754,8 +754,8 @@ class Server {
         }
         // Text Sign: 'ts' x, y, blockId, text, signtype, playerId
         else if (blockId === 385) {
-          const text = String(extraArgs[0] || "");
-          const signType = Number(extraArgs[1] || 1);
+          const text = String(extraArgs[0] !== undefined ? extraArgs[0] : "");
+          const signType = extraArgs[1] !== undefined ? Number(extraArgs[1]) : 0;
           const tsMsg = new PlayerIOMessage('ts', [x, y, blockId, text, signType, player.id]);
           this.broadcastToRoom(room, tsMsg);
         }
@@ -789,8 +789,8 @@ class Server {
           const bnMsg = new PlayerIOMessage('bn', [x, y, blockId, npcName, npcMsg1, npcMsg2, npcMsg3, player.id]);
           this.broadcastToRoom(room, bnMsg);
         }
-        // Rotatable blocks (spikes, half blocks, one-ways, etc.): 'br' x, y, blockId, rotation, layer, playerId
-        else if (extraArgs.length === 1 && this.isRotatableBlock(blockId)) {
+        // Rotatable and Morphable blocks (spikes, half blocks, one-ways, pipes, etc.): 'br' x, y, blockId, rotation, layer, playerId
+        else if (extraArgs.length === 1) {
           const rotation = Number(extraArgs[0] || 0);
           const brMsg = new PlayerIOMessage('br', [x, y, blockId, rotation, layer, player.id]);
           this.broadcastToRoom(room, brMsg);

@@ -19,7 +19,7 @@ package blitter
       
       private var shadowBmd:BitmapData;
       
-      protected var frames:int;
+      public var frames:int;
       
       protected var offset:int;
       
@@ -57,6 +57,11 @@ package blitter
       public static function createFromBitmapData(param1:BitmapData) : BlSprite
       {
          return new BlSprite(param1,0,0,param1.width,param1.height,1);
+      }
+      
+      public function get totalFrames() : int
+      {
+         return this.frames;
       }
       
       public function updateFrame() : void

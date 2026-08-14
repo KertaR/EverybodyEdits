@@ -2785,6 +2785,20 @@ package items
                return sprShadowM;
             case ItemId.SHADOW_N:
                return sprShadowN;
+            case ItemId.SPIKE:
+               return sprSpikes;
+            case ItemId.SPIKE_SILVER:
+               return sprSpikesSilver;
+            case ItemId.SPIKE_BLACK:
+               return sprSpikesBlack;
+            case ItemId.SPIKE_RED:
+               return sprSpikesRed;
+            case ItemId.SPIKE_GOLD:
+               return sprSpikesGold;
+            case ItemId.SPIKE_GREEN:
+               return sprSpikesGreen;
+            case ItemId.SPIKE_BLUE:
+               return sprSpikesBlue;
             default:
                return null;
          }

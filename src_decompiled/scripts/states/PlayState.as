@@ -5,6 +5,7 @@ package states
    import blitter.Bl;
    import blitter.BlContainer;
    import blitter.BlObject;
+   import blitter.BlockSprite;
    import blitter.BlSprite;
    import blitter.BlState;
    import blitter.BlText;
@@ -2280,55 +2281,78 @@ package states
          return _loc4_;
       }
       
-      public function placeBlock(param1:int, param2:int, param3:int, param4:int) : void
+      private function getBlockMaxFrames(param1:int) : int
       {
-         if(ItemId.isBlockRotateable(param4) || ItemId.isNonRotatableHalfBlock(param4) || param4 == ItemId.SPIKE || param4 == ItemId.SPIKE_SILVER || param4 == ItemId.SPIKE_BLACK || param4 == ItemId.SPIKE_RED || param4 == ItemId.SPIKE_GOLD || param4 == ItemId.SPIKE_GREEN || param4 == ItemId.SPIKE_BLUE)
+         var spr:BlockSprite = ItemManager.getRotateableSprite(param1);
+         if(spr != null)
          {
-            this.world.updateRotateablesMap(param4,param2,param3);
-            this.connection.send("b",param1,param2,param3,param4,this.world.lookup.getInt(param2,param3) + 1);
-            return;
+            return spr.totalFrames > 0 ? spr.totalFrames : 4;
          }
-         switch(param4)
-         {
-            case ItemId.COINDOOR:
-            case ItemId.COINGATE:
-            case ItemId.BLUECOINDOOR:
-            case ItemId.BLUECOINGATE:
-               this.connection.send("b",param1,param2,param3,param4,Bl.data.coincount);
-               break;
-            case ItemId.SWITCH_PURPLE:
-            case ItemId.RESET_PURPLE:
-            case ItemId.DOOR_PURPLE:
-            case ItemId.GATE_PURPLE:
-            case ItemId.SWITCH_ORANGE:
-            case ItemId.RESET_ORANGE:
-            case ItemId.DOOR_ORANGE:
-            case ItemId.GATE_ORANGE:
-               this.connection.send("b",param1,param2,param3,param4,Bl.data.switchId);
-               break;
-            case ItemId.DEATH_DOOR:
-            case ItemId.DEATH_GATE:
-               this.connection.send("b",param1,param2,param3,param4,Bl.data.deathcount);
-               break;
-            case ItemId.PORTAL_INVISIBLE:
-            case ItemId.PORTAL:
-               this.connection.send("b",param1,param2,param3,param4,this.world.lookup.getPortal(param2,param3).rotation + 1,Bl.data.portal_id,Bl.data.portal_target);
-               break;
-            case ItemId.WORLD_PORTAL:
-               if(Bl.data.world_portal_name != null)
-               {
-                  this.connection.send("b",param1,param2,param3,param4,Bl.data.world_portal_id,Bl.data.world_portal_target);
-               }
-               break;
-            case ItemId.WORLD_PORTAL_SPAWN:
-               this.connection.send("b",param1,param2,param3,param4,Bl.data.spawn_id);
-               break;
-            case ItemId.TEXT_SIGN:
-               this.connection.send("b",param1,param2,param3,param4,Global.text_sign_text,this.world.lookup.getTextSign(param2,param3).type + 1);
-               break;
-            case ItemId.LABEL:
-               this.connection.send("b",param1,param2,param3,param4,Global.default_label_text,Global.default_label_hex,Bl.data.wrapLength);
-               break;
+         return 4;
+      }
+
+       public function placeBlock(param1:int, param2:int, param3:int, param4:int) : void
+       {
+          var isSameBlock:Boolean = (this.world.getTile(param1,param2,param3) == param4);
+          if(ItemId.isBlockRotateable(param4) || ItemId.isNonRotatableHalfBlock(param4) || param4 == ItemId.SPIKE || param4 == ItemId.SPIKE_SILVER || param4 == ItemId.SPIKE_BLACK || param4 == ItemId.SPIKE_RED || param4 == ItemId.SPIKE_GOLD || param4 == ItemId.SPIKE_GREEN || param4 == ItemId.SPIKE_BLUE)
+          {
+             this.world.updateRotateablesMap(param4,param2,param3);
+             var maxFrames:int = this.getBlockMaxFrames(param4);
+             var curRot:int = 1;
+             if(isSameBlock)
+             {
+                curRot = (this.world.lookup.getInt(param2,param3) + 1) % maxFrames;
+             }
+             this.world.lookup.setInt(param2,param3,curRot);
+             this.connection.send("b",param1,param2,param3,param4,curRot);
+             return;
+          }
+          switch(param4)
+          {
+             case ItemId.COINDOOR:
+             case ItemId.COINGATE:
+             case ItemId.BLUECOINDOOR:
+             case ItemId.BLUECOINGATE:
+                this.connection.send("b",param1,param2,param3,param4,Bl.data.coincount);
+                break;
+             case ItemId.SWITCH_PURPLE:
+             case ItemId.RESET_PURPLE:
+             case ItemId.DOOR_PURPLE:
+             case ItemId.GATE_PURPLE:
+             case ItemId.SWITCH_ORANGE:
+             case ItemId.RESET_ORANGE:
+             case ItemId.DOOR_ORANGE:
+             case ItemId.GATE_ORANGE:
+                this.connection.send("b",param1,param2,param3,param4,Bl.data.switchId);
+                break;
+             case ItemId.DEATH_DOOR:
+             case ItemId.DEATH_GATE:
+                this.connection.send("b",param1,param2,param3,param4,Bl.data.deathcount);
+                break;
+             case ItemId.PORTAL_INVISIBLE:
+             case ItemId.PORTAL:
+                var nextPortalRot:int = isSameBlock ? ((this.world.lookup.getPortal(param2,param3).rotation + 1) % 4) : 0;
+                this.world.lookup.setPortal(param2,param3,new Portal(Bl.data.portal_id,Bl.data.portal_target,nextPortalRot,param4));
+                this.connection.send("b",param1,param2,param3,param4,nextPortalRot,Bl.data.portal_id,Bl.data.portal_target);
+                break;
+             case ItemId.WORLD_PORTAL:
+                if(Bl.data.world_portal_name != null)
+                {
+                   this.connection.send("b",param1,param2,param3,param4,Bl.data.world_portal_id,Bl.data.world_portal_target);
+                }
+                break;
+             case ItemId.WORLD_PORTAL_SPAWN:
+                this.connection.send("b",param1,param2,param3,param4,Bl.data.spawn_id);
+                break;
+             case ItemId.TEXT_SIGN:
+                var signFrames:int = ItemManager.sprSign != null ? ItemManager.sprSign.totalFrames : 8;
+                var nextSignType:int = isSameBlock ? ((this.world.lookup.getTextSign(param2,param3).type + 1) % signFrames) : 0;
+                this.world.lookup.setTextSign(param2,param3,new TextSign(Global.text_sign_text,nextSignType));
+                this.connection.send("b",param1,param2,param3,param4,Global.text_sign_text,nextSignType);
+                break;
+             case ItemId.LABEL:
+                this.connection.send("b",param1,param2,param3,param4,Global.default_label_text,Global.default_label_hex,Bl.data.wrapLength);
+                break;
             case 83:
                this.connection.send("b",param1,param2,param3,param4,Global.drumOffset);
                break;
