@@ -32,6 +32,10 @@ class UserManager {
             if (user.energy === undefined) { user.energy = 100; modified = true; }
             if (user.maxEnergy === undefined) { user.maxEnergy = 200; modified = true; }
             if (!user.itemEnergyProgress) { user.itemEnergyProgress = {}; modified = true; }
+            if (!Array.isArray(user.friends)) { user.friends = []; modified = true; }
+            if (!Array.isArray(user.favorites)) { user.favorites = []; modified = true; }
+            if (!Array.isArray(user.likedWorlds)) { user.likedWorlds = []; modified = true; }
+            if (user.crew === undefined) { user.crew = ''; modified = true; }
             this.users.set(user.username.toLowerCase(), user);
             if (modified) {
               fs.writeFileSync(filePath, JSON.stringify(user, null, 2), 'utf8');
@@ -45,24 +49,51 @@ class UserManager {
     }
   }
 
-  saveUser(username) {
+  saveUser(username, immediate = false) {
     try {
       const user = this.getUser(username);
-      if (!user) return;
-      const key = user.username.toLowerCase();
-      if (key.startsWith('guest') || key.includes('-')) {
-        return;
+      if (!user) return false;
+      const key = username.trim().toLowerCase();
+      if (key.startsWith('guest') || key.includes('-')) return false;
+
+      if (!this.saveTimers) this.saveTimers = new Map();
+
+      const doWrite = () => {
+        const filePath = path.join(this.usersDir, `${key}.json`);
+        fs.writeFile(filePath, JSON.stringify(user, null, 2), 'utf8', (err) => {
+          if (err) console.error(`[UserManager Error] Failed to save user ${username}: ${err.message}`);
+        });
+      };
+
+      if (immediate) {
+        if (this.saveTimers.has(key)) {
+          clearTimeout(this.saveTimers.get(key));
+          this.saveTimers.delete(key);
+        }
+        const filePath = path.join(this.usersDir, `${key}.json`);
+        fs.writeFileSync(filePath, JSON.stringify(user, null, 2), 'utf8');
+        return true;
       }
-      const filePath = path.join(this.usersDir, `${key}.json`);
-      fs.writeFileSync(filePath, JSON.stringify(user, null, 2), 'utf8');
+
+      if (this.saveTimers.has(key)) {
+        clearTimeout(this.saveTimers.get(key));
+      }
+
+      this.saveTimers.set(key, setTimeout(() => {
+        this.saveTimers.delete(key);
+        doWrite();
+      }, 500));
+
+      return true;
     } catch (err) {
       console.error(`[UserManager Error] Failed to save user ${username}: ${err.message}`);
+      return false;
     }
   }
 
   getUser(username) {
     if (!username) return null;
-    let clean = username.trim().toLowerCase();
+    let clean = String(username).trim().toLowerCase();
     if (clean.startsWith('simple') && clean !== 'simpleguest') {
       clean = clean.substring(6);
     }
@@ -95,6 +126,10 @@ class UserManager {
         maxEnergy: 200,
         payVault: [],
         smileyGoldBorder: false,
+        friends: [],
+        favorites: [],
+        likedWorlds: [],
+        crew: '',
         registeredAt: new Date().toISOString(),
         lastLogin: new Date().toISOString()
       };

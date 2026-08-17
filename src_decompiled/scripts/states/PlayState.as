@@ -474,7 +474,6 @@ package states
          });
          this.connection.addMessageHandler("b",function(param1:Message, param2:int, param3:int, param4:int, param5:int, param6:int = -1):void
          {
-            Global.log("b handler: layer=" + param2 + " x=" + param3 + " y=" + param4 + " blockId=" + param5 + " pid=" + param6);
             setTile(param2,param3,param4,param5,{});
             setBlockPlayerData(param3,param4,param2,param6);
          });

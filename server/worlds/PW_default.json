@@ -1,12 +1,18 @@
 {
   "id": "PW_default",
   "title": "Private World",
+  "description": "",
   "owner": "Admin",
   "ownerId": "admin_1",
   "editKey": "",
   "width": 200,
   "height": 200,
+  "spawnX": 16,
+  "spawnY": 16,
   "backgroundColor": 0,
+  "likes": 0,
+  "favorites": 0,
+  "plays": 1,
   "foreground": [
     [
       9,

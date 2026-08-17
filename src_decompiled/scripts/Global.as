@@ -22,14 +22,13 @@ package
       public static function log(param1:String) : void
       {
          trace("[LOG] " + param1);
-         if(logField != null)
+         if(logField != null && logField.visible)
          {
-            var _loc2_:int = logField.text.length;
+            if(logField.text.length > 2000)
+            {
+               logField.text = logField.text.substring(1000);
+            }
             logField.appendText(param1 + "\n");
-            var _loc3_:TextFormat = new TextFormat();
-            _loc3_.color = 0x00FF00;
-            _loc3_.size = 12;
-            logField.setTextFormat(_loc3_,_loc2_,logField.text.length);
             logField.scrollV = logField.maxScrollV;
          }
       }

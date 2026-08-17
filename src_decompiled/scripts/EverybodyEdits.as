@@ -867,6 +867,117 @@ package
                 return;
              }
 
+              if(name == "getCrew")
+              {
+                 var cName:String = (args.length > 0 && args[0] != null) ? String(args[0]) : "eelegends";
+                 var crewLoader:URLLoader = new URLLoader();
+                 var crewReq:URLRequest = new URLRequest("http://localhost:8080/api/crew?name=" + encodeURIComponent(cName));
+                 crewLoader.addEventListener(Event.COMPLETE, function(e:Event):void
+                 {
+                    try
+                    {
+                       var cRes:Object = JSON.parse(String(crewLoader.data));
+                       var cData:Object = cRes.crew;
+                       var mCrew:Message = new Message("getCrew");
+                       if(cData == null)
+                       {
+                          mCrew.add(true); // isError = true
+                          if(callback != null) callback(mCrew);
+                          return;
+                       }
+
+                       mCrew.add(false); // isError = false
+                       mCrew.add(String(cData.id || "eelegends"));
+                       mCrew.add(String(cData.name || "EE Legends"));
+                       mCrew.add(uint(cData.subscribers || 100));
+                       mCrew.add(String(cData.logoWorldId || "PW_default"));
+
+                       var isMember:Boolean = true;
+                       var memberRank:int = 0; // Leader
+                       mCrew.add(memberRank);
+
+                       if(memberRank >= 0)
+                       {
+                          mCrew.add(true); // canEditRanks
+                          mCrew.add(true); // canChangeColors
+                       }
+
+                       mCrew.add(uint(cData.crewTextColor != null ? cData.crewTextColor : 0xFFFFFF));
+                       mCrew.add(uint(cData.crewBackgroundColor != null ? cData.crewBackgroundColor : 0x1E293B));
+                       mCrew.add(uint(cData.crewBackground2ndColor != null ? cData.crewBackground2ndColor : 0x0F172A));
+                       mCrew.add(String(cData.faceplate || "Castle"));
+                       mCrew.add(uint(cData.faceplateColor || 0));
+
+                       // Faceplates count
+                       mCrew.add(0);
+
+                       // Ranks
+                       var rArr:Array = cData.ranks as Array;
+                       if(rArr == null || rArr.length == 0)
+                       {
+                          mCrew.add(3);
+                          mCrew.add(0); mCrew.add("Leader");
+                          mCrew.add(1); mCrew.add("Officer");
+                          mCrew.add(2); mCrew.add("Member");
+                       }
+                       else
+                       {
+                          mCrew.add(rArr.length);
+                          for each(var rObj:Object in rArr)
+                          {
+                             mCrew.add(int(rObj.id));
+                             mCrew.add(String(rObj.name));
+                          }
+                       }
+
+                       // Rooms
+                       var rmArr:Array = cData.rooms as Array;
+                       if(rmArr == null || rmArr.length == 0)
+                       {
+                          mCrew.add(1);
+                          mCrew.add("PW_default");
+                       }
+                       else
+                       {
+                          mCrew.add(rmArr.length);
+                          for each(var rmStr:String in rmArr)
+                          {
+                             mCrew.add(String(rmStr));
+                          }
+                       }
+
+                       // Members (5 items each)
+                       var mArr:Array = cData.members as Array;
+                       if(mArr != null)
+                       {
+                          for each(var mObj:Object in mArr)
+                          {
+                             mCrew.add(String(mObj.username));
+                             mCrew.add(String(mObj.role || "Member"));
+                             mCrew.add(int(mObj.rank != null ? mObj.rank : 2));
+                             mCrew.add(int(mObj.face != null ? mObj.face : 0));
+                             mCrew.add(Boolean(mObj.isOnline));
+                          }
+                       }
+                       if(callback != null) callback(mCrew);
+                    }
+                    catch(eCrewErr:Error)
+                    {
+                       var mErrC:Message = new Message("getCrew");
+                       mErrC.add(true);
+                       if(callback != null) callback(mErrC);
+                    }
+                 });
+                 crewLoader.addEventListener(IOErrorEvent.IO_ERROR, function(e:Event):void
+                 {
+                    var mErrC2:Message = new Message("getCrew");
+                    mErrC2.add(true);
+                    if(callback != null) callback(mErrC2);
+                 });
+                 crewLoader.load(crewReq);
+                 return;
+              }
+
               if(name == "getProfileObject")
               {
                  var pUser:String = (args.length > 0 && args[0] != null && String(args[0]) != "") ? String(args[0]) : "Admin";
@@ -1077,10 +1188,10 @@ package
                      for each(var mMember:Object in membersArr)
                      {
                         mC.add(String(mMember.username));
-                        mC.add(String(mMember.smiley != null ? mMember.smiley : "smileyninja"));
+                        mC.add(String(mMember.role != null ? mMember.role : "Member"));
                         mC.add(int(mMember.rank != null ? mMember.rank : 0));
-                        mC.add(int(mMember.faceplate != null ? mMember.faceplate : 0));
-                        mC.add(Boolean(mMember.isOnline));
+                        mC.add(int(mMember.face != null ? mMember.face : 0));
+                        mC.add(Boolean(mMember.smileyGoldBorder != null ? mMember.smileyGoldBorder : false));
                      }
                   }
 

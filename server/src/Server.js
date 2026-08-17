@@ -11,6 +11,8 @@ const { PlayerIOMessage, PlayerIOProtocol } = require('./PlayerIOProtocol');
 const World = require('./World');
 const Player = require('./Player');
 const UserManager = require('./UserManager');
+const CrewManager = require('./CrewManager');
+const AchievementManager = require('./AchievementManager');
 
 class Server {
   constructor(config = {}) {
@@ -18,6 +20,8 @@ class Server {
     this.host = config.host || '0.0.0.0';
     this.worldsDir = path.join(__dirname, '../worlds');
     this.userManager = new UserManager(path.join(__dirname, '../'));
+    this.crewManager = new CrewManager(path.join(__dirname, '../'));
+    this.achievementManager = new AchievementManager(this.userManager);
 
     // Rooms map: roomId -> { world: World, players: Map<id, Player>, nextPlayerId: number }
     this.rooms = new Map();
@@ -256,6 +260,238 @@ class Server {
           }
           res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
           res.end(JSON.stringify({ success: true, user }));
+          return;
+        }
+
+        // API Endpoint: Get All Crews
+        if (req.method === 'GET' && reqPath === '/api/crews') {
+          const crews = this.crewManager.getAllCrewsList();
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ success: true, crews }));
+          return;
+        }
+
+        // API Endpoint: Get Crew Details
+        if (req.method === 'GET' && (reqPath === '/api/crew' || reqPath.startsWith('/api/crew/'))) {
+          const parsedUrl = url.parse(req.url, true);
+          let crewName = parsedUrl.query.name || parsedUrl.query.id || (reqPath.startsWith('/api/crew/') ? decodeURIComponent(reqPath.substring('/api/crew/'.length)) : '');
+          if (crewName.toLowerCase().startsWith('crew')) crewName = crewName.substring(4);
+          const crew = this.crewManager.getCrew(crewName);
+          if (crew) {
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ success: true, crew }));
+          } else {
+            res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ success: false, error: 'Crew not found' }));
+          }
+          return;
+        }
+
+        // API Endpoint: Social - Add Friend
+        if (req.method === 'POST' && reqPath === '/api/friends/add') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const { username, friendUsername } = data;
+              const user = this.userManager.getUser(username);
+              const friend = this.userManager.getUser(friendUsername);
+              if (!user || !friend) {
+                res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'User not found' }));
+                return;
+              }
+              if (!user.friends) user.friends = [];
+              if (!user.friends.includes(friend.username)) {
+                user.friends.push(friend.username);
+                this.userManager.saveUser(user.username);
+              }
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true, friends: user.friends }));
+            } catch (e) {
+              res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
+        // API Endpoint: Get Live Map & Players for Admin Panel
+        if (req.method === 'GET' && reqPath === '/api/admin/live-map') {
+          const parsedUrl = url.parse(req.url, true);
+          const roomId = parsedUrl.query.room || 'PW_default';
+          const room = this.getOrCreateRoom(roomId);
+          
+          const playersList = [];
+          for (const p of room.players.values()) {
+            playersList.push({
+              id: p.id,
+              username: p.username,
+              x: p.x,
+              y: p.y,
+              face: p.face,
+              isGod: Boolean(p.isGod),
+              canEdit: Boolean(p.canEdit),
+              isOwner: Boolean(p.isOwner),
+              isAdmin: Boolean(p.isAdmin),
+              isMuted: Boolean(p.isMuted)
+            });
+          }
+
+          const fgArray = [];
+          const bgArray = [];
+          for (let y = 0; y < room.world.height; y++) {
+            fgArray.push(Array.from(room.world.foreground[y]));
+            bgArray.push(Array.from(room.world.background[y]));
+          }
+
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({
+            success: true,
+            room: {
+              id: room.id,
+              title: room.world.title,
+              width: room.world.width,
+              height: room.world.height,
+              spawnX: room.world.spawnX,
+              spawnY: room.world.spawnY,
+              playerCount: room.players.size
+            },
+            players: playersList,
+            foreground: fgArray,
+            background: bgArray
+          }));
+          return;
+        }
+
+        // API Endpoint: Execute Admin Action from Web Panel
+        if (req.method === 'POST' && reqPath === '/api/admin/action') {
+          let body = '';
+          req.on('data', chunk => { body += chunk.toString(); });
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const { action, username, roomId, amount, itemId, message, reason } = data;
+              let resultMessage = '';
+
+              if (action === 'broadcast') {
+                const alertMsg = new PlayerIOMessage('write', ['* GLOBAL ANNOUNCEMENT', String(message || '')]);
+                for (const r of this.rooms.values()) {
+                  this.broadcastToRoom(r, alertMsg);
+                }
+                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: true, message: 'Broadcast sent to all rooms' }));
+                return;
+              }
+
+              const user = this.userManager.getUser(username);
+              if (!user && action !== 'broadcast') {
+                res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: `User '${username}' not found` }));
+                return;
+              }
+
+              if (action === 'givegems') {
+                const addGems = parseInt(amount) || 100;
+                user.gems = (user.gems || 0) + addGems;
+                this.userManager.saveUser(user.username);
+                resultMessage = `Gave ${addGems} gems to ${user.username} (New total: ${user.gems})`;
+              } else if (action === 'giveenergy') {
+                const addEnergy = parseInt(amount) || 100;
+                user.energy = Math.min(user.maxEnergy || 200, (user.energy || 0) + addEnergy);
+                this.userManager.saveUser(user.username);
+                resultMessage = `Gave ${addEnergy} energy to ${user.username}`;
+              } else if (action === 'giveitem') {
+                if (!user.payVault) user.payVault = [];
+                if (!user.payVault.includes(itemId)) user.payVault.push(itemId);
+                this.userManager.saveUser(user.username);
+                resultMessage = `Added item '${itemId}' to ${user.username}'s payVault`;
+              } else if (action === 'ban') {
+                user.isBanned = true;
+                user.banReason = reason || 'Banned by admin';
+                this.userManager.saveUser(user.username);
+                for (const r of this.rooms.values()) {
+                  for (const p of r.players.values()) {
+                    if (p.username.toLowerCase() === user.username.toLowerCase()) {
+                      p.send(new PlayerIOMessage('write', ['* SYSTEM', `You have been banned: ${user.banReason}`]));
+                      try { p.socket.destroy(); } catch (e) {}
+                    }
+                  }
+                }
+                resultMessage = `Banned player ${user.username}`;
+              } else if (action === 'unban') {
+                user.isBanned = false;
+                delete user.banReason;
+                this.userManager.saveUser(user.username);
+                resultMessage = `Unbanned player ${user.username}`;
+              } else if (action === 'kick') {
+                for (const r of this.rooms.values()) {
+                  for (const p of r.players.values()) {
+                    if (p.username.toLowerCase() === user.username.toLowerCase()) {
+                      p.send(new PlayerIOMessage('write', ['* SYSTEM', `You have been kicked: ${reason || 'Kicked by admin'}`]));
+                      try { p.socket.destroy(); } catch (e) {}
+                    }
+                  }
+                }
+                resultMessage = `Kicked player ${user.username}`;
+              } else if (action === 'mute') {
+                for (const r of this.rooms.values()) {
+                  for (const p of r.players.values()) {
+                    if (p.username.toLowerCase() === user.username.toLowerCase()) {
+                      p.isMuted = true;
+                      p.send(new PlayerIOMessage('write', ['* SYSTEM', 'You have been muted by an administrator.']));
+                    }
+                  }
+                }
+                resultMessage = `Muted player ${user.username}`;
+              } else if (action === 'unmute') {
+                for (const r of this.rooms.values()) {
+                  for (const p of r.players.values()) {
+                    if (p.username.toLowerCase() === user.username.toLowerCase()) {
+                      p.isMuted = false;
+                      p.send(new PlayerIOMessage('write', ['* SYSTEM', 'You have been unmuted.']));
+                    }
+                  }
+                }
+                resultMessage = `Unmuted player ${user.username}`;
+              } else if (action === 'givexp') {
+                const addXP = parseInt(amount) || 100;
+                this.achievementManager.addXP(user, addXP, (msg) => {
+                  for (const r of this.rooms.values()) {
+                    for (const p of r.players.values()) {
+                      if (p.username.toLowerCase() === user.username.toLowerCase()) {
+                        p.send(new PlayerIOMessage('write', ['* SYSTEM', msg]));
+                      }
+                    }
+                  }
+                });
+                resultMessage = `Gave ${addXP} XP to ${user.username} (Level: ${user.level}, XP: ${user.xp})`;
+              }
+
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true, message: resultMessage }));
+            } catch (e) {
+              res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
+        // API Endpoint: Get Achievements and Level Progress for User
+        if (req.method === 'GET' && reqPath === '/api/admin/achievements') {
+          const parsedUrl = url.parse(req.url, true);
+          const username = parsedUrl.query.username || 'Admin';
+          const user = this.userManager.getUser(username);
+          if (!user) {
+            res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ success: false, error: 'User not found' }));
+            return;
+          }
+          const data = this.achievementManager.getUserAchievements(user);
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ success: true, ...data }));
           return;
         }
 
@@ -664,6 +900,8 @@ class Server {
               auraColor: u.auraColor !== undefined ? u.auraColor : 0,
               badge: u.badge || '',
               goldmember: Boolean(u.goldmember || u.isGold),
+              level: u.level || this.achievementManager.calculateLevel(u.xp).level,
+              xp: u.xp || 0,
               payVaultCount: Array.isArray(u.payVault) ? u.payVault.length : 0,
               payVault: u.payVault || [],
               registeredAt: u.registeredAt || '',
@@ -699,6 +937,8 @@ class Server {
               if (data.isMod !== undefined) user.isMod = Boolean(data.isMod);
               if (data.isBanned !== undefined) user.isBanned = Boolean(data.isBanned);
               if (data.goldmember !== undefined) user.goldmember = Boolean(data.goldmember);
+              if (data.level !== undefined) user.level = Number(data.level);
+              if (data.xp !== undefined) user.xp = Number(data.xp);
               if (data.gems !== undefined) user.gems = Number(data.gems);
               if (data.energy !== undefined) user.energy = Number(data.energy);
               if (data.maxEnergy !== undefined) user.maxEnergy = Number(data.maxEnergy);
@@ -1274,13 +1514,16 @@ class Server {
         if (!player || !room) return;
         console.log(`[Init] Client requested init for player ${player.username} (ID: ${player.id}) in room ${room.id}`);
 
+        player.x = (room.world.spawnX !== undefined ? room.world.spawnX : 16) * 16;
+        player.y = (room.world.spawnY !== undefined ? room.world.spawnY : 16) * 16;
+
         // Construct & Send 'init' message matching EverybodyEdits.as & PlayState.as expectations
         const initMsg = new PlayerIOMessage('init');
         initMsg.add(room.world.owner);           // param2: Owner Username
         initMsg.add(room.world.title);           // param3: Level Name
-        initMsg.add(0);                          // param4: Plays/Views
-        initMsg.add(0);                          // param5: Favorites
-        initMsg.add(0);                          // param6: Likes
+        initMsg.add(room.world.plays || 0);      // param4: Plays/Views
+        initMsg.add(room.world.favorites || 0);  // param5: Favorites
+        initMsg.add(room.world.likes || 0);      // param6: Likes
         initMsg.add(player.id);                  // param7: My Player ID
         initMsg.add(player.face);                // param8: Spawn Face/Smiley
         initMsg.add(player.aura);                // param9: Spawn Aura
@@ -1301,12 +1544,12 @@ class Server {
         initMsg.add(true);                       // param24: Visible
         initMsg.add(false);                      // param25: Hide Lobby
         initMsg.add(false);                      // param26: Allow Spectating
-        initMsg.add('');                         // param27: Room Description
+        initMsg.add(room.world.description || ''); // param27: Room Description
         initMsg.add(0);                          // param28: Effect Limit 1
         initMsg.add(0);                          // param29: Effect Limit 2
         initMsg.add(false);                      // param30: Is Campaign Room
-        initMsg.add('');                         // param31: Crew ID
-        initMsg.add('');                         // param32: Crew Name
+        initMsg.add(room.world.crewId);          // param31: Crew ID
+        initMsg.add(room.world.crewName);        // param32: Crew Name
         initMsg.add(true);                       // param33: Can Change World Options
         initMsg.add(0);                          // param34: Status
         initMsg.add(player.badge);               // param35: Badge
@@ -1322,6 +1565,14 @@ class Server {
         room.world.serializeToInitMessage(initMsg);
 
         player.send(initMsg);
+
+        // Track world visit stat for achievements
+        const uInit = this.userManager.getUser(player.username);
+        if (uInit) {
+          this.achievementManager.trackStat(uInit, 'worldsVisited', room.id, (msg) => {
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
+          });
+        }
 
         // Send 'add' message for all existing players to the new player
         for (const [otherId, otherPlayer] of room.players) {
@@ -1358,6 +1609,16 @@ class Server {
         if (player.horizontal > 0x7FFFFFFF) player.horizontal = (player.horizontal | 0);
         if (player.vertical > 0x7FFFFFFF) player.vertical = (player.vertical | 0);
 
+        // Track jump stat
+        if (player.spacejustdown) {
+          const uJump = this.userManager.getUser(player.username);
+          if (uJump) {
+            this.achievementManager.trackStat(uJump, 'jumps', 1, (msg) => {
+              this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
+            });
+          }
+        }
+
         // Broadcast 'm' to all other players in room (matching PlayState.as 'm' handler)
         const broadcastM = new PlayerIOMessage('m', [
           player.id,
@@ -1386,7 +1647,13 @@ class Server {
         const extraArgs = msg.values.slice(4);
         room.world.setBlock(layer, x, y, blockId, extraArgs.length > 0 ? extraArgs : null);
 
-        console.log(`[Block Place] Player ${player.username} placed blockId=${blockId} at (${x},${y}) layer=${layer} extraArgs=[${extraArgs}]`);
+        // Track blocksPlaced stat
+        const uBlock = this.userManager.getUser(player.username);
+        if (uBlock) {
+          this.achievementManager.trackStat(uBlock, 'blocksPlaced', 1, (msg) => {
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
+          });
+        }
 
         // --- Determine correct response message type based on block type ---
 
@@ -1651,30 +1918,498 @@ class Server {
             return;
           }
 
+          if (cmd === 'fill') {
+            const hasPermission = player.canEdit || player.isOwner || player.isAdmin || player.isMod;
+            if (!hasPermission) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You need edit rights to use /fill.']));
+              return;
+            }
+            if (args.length < 5) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /fill <x1> <y1> <x2> <y2> <blockId>']));
+              return;
+            }
+            const x1 = parseInt(args[0]), y1 = parseInt(args[1]), x2 = parseInt(args[2]), y2 = parseInt(args[3]), blockId = parseInt(args[4]);
+            if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2) || isNaN(blockId)) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Coordinates and blockId must be numbers.']));
+              return;
+            }
+            const res = room.world.fillArea(0, x1, y1, x2, y2, blockId);
+            const bcMsg = new PlayerIOMessage('bc', [res.minX, res.minY, res.maxX, res.maxY, blockId, player.id]);
+            this.broadcastToRoom(room, bcMsg);
+            room.world.saveToFile(this.worldsDir);
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} filled ${res.count} blocks with ID ${blockId}. (Use /undo to revert)`]));
+            return;
+          }
+
+          if (cmd === 'bgfill') {
+            const hasPermission = player.canEdit || player.isOwner || player.isAdmin || player.isMod;
+            if (!hasPermission) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You need edit rights to use /bgfill.']));
+              return;
+            }
+            if (args.length < 5) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /bgfill <x1> <y1> <x2> <y2> <bgBlockId>']));
+              return;
+            }
+            const x1 = parseInt(args[0]), y1 = parseInt(args[1]), x2 = parseInt(args[2]), y2 = parseInt(args[3]), bgId = parseInt(args[4]);
+            if (isNaN(x1) || isNaN(y1) || isNaN(x2) || isNaN(y2) || isNaN(bgId)) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Coordinates and bgId must be numbers.']));
+              return;
+            }
+            const res = room.world.fillArea(1, x1, y1, x2, y2, bgId);
+            for (const b of res.changedBlocks) {
+              this.broadcastToRoom(room, new PlayerIOMessage('b', [1, b.x, b.y, bgId, player.id]));
+            }
+            room.world.saveToFile(this.worldsDir);
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} filled ${res.count} background blocks. (Use /undo to revert)`]));
+            return;
+          }
+
+          if (cmd === 'replace') {
+            const hasPermission = player.canEdit || player.isOwner || player.isAdmin || player.isMod;
+            if (!hasPermission) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You need edit rights to use /replace.']));
+              return;
+            }
+            let fromId, toId, rect = null;
+            if (args.length === 2) {
+              fromId = parseInt(args[0]);
+              toId = parseInt(args[1]);
+            } else if (args.length === 6) {
+              rect = { x1: parseInt(args[0]), y1: parseInt(args[1]), x2: parseInt(args[2]), y2: parseInt(args[3]) };
+              fromId = parseInt(args[4]);
+              toId = parseInt(args[5]);
+            } else {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /replace <fromId> <toId> OR /replace <x1> <y1> <x2> <y2> <fromId> <toId>']));
+              return;
+            }
+            const res = room.world.replaceBlocks(0, fromId, toId, rect);
+            for (const b of res.changedBlocks) {
+              this.broadcastToRoom(room, new PlayerIOMessage('b', [0, b.x, b.y, toId, player.id]));
+            }
+            room.world.saveToFile(this.worldsDir);
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} replaced ${res.count} blocks (${fromId} -> ${toId}). (Use /undo to revert)`]));
+            return;
+          }
+
+          if (cmd === 'undo') {
+            const hasPermission = player.canEdit || player.isOwner || player.isAdmin || player.isMod;
+            if (!hasPermission) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You need edit rights to use /undo.']));
+              return;
+            }
+            const res = room.world.undo();
+            if (!res) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Nothing to undo!']));
+              return;
+            }
+            for (const b of res.restored) {
+              this.broadcastToRoom(room, new PlayerIOMessage('b', [b.layer, b.x, b.y, b.blockId, player.id]));
+            }
+            room.world.saveToFile(this.worldsDir);
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} undone the last '${res.action}' action (${res.count} blocks restored).`]));
+            return;
+          }
+
+          if (cmd === 'setspawn') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only room owner or staff can set the spawn location.']));
+              return;
+            }
+            let spawnX = Math.round(player.x / 16) || 16;
+            let spawnY = Math.round(player.y / 16) || 16;
+            if (args.length >= 2) {
+              spawnX = parseInt(args[0]) || spawnX;
+              spawnY = parseInt(args[1]) || spawnY;
+            }
+            room.world.spawnX = spawnX;
+            room.world.spawnY = spawnY;
+            room.world.saveToFile(this.worldsDir);
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `Spawn point set to (${spawnX}, ${spawnY}) by ${player.username}!`]));
+            return;
+          }
+
+          if (cmd === 'worldtitle' || cmd === 'title') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only room owner or staff can change world title.']));
+              return;
+            }
+            const newTitle = args.join(' ');
+            if (!newTitle) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /worldtitle <new title>']));
+              return;
+            }
+            room.world.title = newTitle;
+            room.world.saveToFile(this.worldsDir);
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `World title changed to '${newTitle}' by ${player.username}.`]));
+            return;
+          }
+
+          if (cmd === 'worlddesc' || cmd === 'desc') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only room owner or staff can change world description.']));
+              return;
+            }
+            const newDesc = args.join(' ');
+            room.world.description = newDesc;
+            room.world.saveToFile(this.worldsDir);
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `World description updated by ${player.username}.`]));
+            return;
+          }
+
+          if (cmd === 'export') {
+            const exportDir = path.join(this.worldsDir, 'exports');
+            if (!fs.existsSync(exportDir)) fs.mkdirSync(exportDir, { recursive: true });
+            const cleanName = (args[0] || `${room.id}_export_${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '');
+            const exportPath = path.join(exportDir, `${cleanName}.json`);
+            room.world.saveToFile(exportDir);
+            fs.copyFileSync(path.join(this.worldsDir, `${room.id}.json`), exportPath);
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `World exported successfully to: server/worlds/exports/${cleanName}.json`]));
+            return;
+          }
+
+          if (cmd === 'tp') {
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /tp <username>']));
+              return;
+            }
+            const targetName = args[0].toLowerCase();
+            let target = null;
+            for (const p of room.players.values()) {
+              if (p.username.toLowerCase() === targetName) { target = p; break; }
+            }
+            if (!target) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Player '${args[0]}' not found.`]));
+              return;
+            }
+            player.x = target.x;
+            player.y = target.y;
+            this.broadcastToRoom(room, new PlayerIOMessage('tele', [player.id, player.x, player.y]));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `Teleported to ${target.username}.`]));
+            return;
+          }
+
           if (cmd === 'clear') {
             const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
             if (!isOwnerOrStaff) {
               player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to clear the world.']));
               return;
             }
-            room.world.clear();
+            const res = room.world.clearWorld();
             const clearMsg = new PlayerIOMessage('clear');
             this.broadcastToRoom(room, clearMsg);
-            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} cleared the world.`]));
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} cleared the world (${res.count} blocks removed). (Use /undo to revert)`]));
             return;
           }
 
-          if (cmd === 'god') {
-            player.isGod = !player.isGod;
-            const godMsg = new PlayerIOMessage('god', [player.id, player.isGod]);
-            this.broadcastToRoom(room, godMsg);
+          if (cmd === 'tphere') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to teleport players to you.']));
+              return;
+            }
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /tphere <username>']));
+              return;
+            }
+            const targetName = args[0].toLowerCase();
+            let target = null;
+            for (const p of room.players.values()) {
+              if (p.username.toLowerCase() === targetName) { target = p; break; }
+            }
+            if (!target) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Player '${args[0]}' not found.`]));
+              return;
+            }
+            target.x = player.x;
+            target.y = player.y;
+            this.broadcastToRoom(room, new PlayerIOMessage('tele', [target.id, target.x, target.y]));
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} teleported ${target.username} to their location.`]));
+            return;
+          }
+
+          if (cmd === 'kick') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to kick players.']));
+              return;
+            }
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /kick <username> [reason]']));
+              return;
+            }
+            const targetName = args[0].toLowerCase();
+            const reason = args.slice(1).join(' ') || 'Kicked by moderator';
+            let target = null;
+            for (const p of room.players.values()) {
+              if (p.username.toLowerCase() === targetName) { target = p; break; }
+            }
+            if (!target) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Player '${args[0]}' not found.`]));
+              return;
+            }
+            target.send(new PlayerIOMessage('write', ['* SYSTEM', `You were kicked: ${reason}`]));
+            try { target.socket.destroy(); } catch (e) {}
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${target.username} was kicked by ${player.username} (${reason}).`]));
+            return;
+          }
+
+          if (cmd === 'ban') {
+            const isStaff = player.isAdmin || player.isMod;
+            if (!isStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only server administrators/moderators can ban players.']));
+              return;
+            }
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /ban <username> [reason]']));
+              return;
+            }
+            const targetName = args[0].toLowerCase();
+            const reason = args.slice(1).join(' ') || 'Banned by moderator';
+            const user = this.userManager.getUser(targetName);
+            if (!user) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `User '${args[0]}' not found in database.`]));
+              return;
+            }
+            user.isBanned = true;
+            user.banReason = reason;
+            this.userManager.saveUser(user.username);
+            for (const r of this.rooms.values()) {
+              for (const p of r.players.values()) {
+                if (p.username.toLowerCase() === targetName) {
+                  p.send(new PlayerIOMessage('write', ['* SYSTEM', `You have been banned: ${reason}`]));
+                  try { p.socket.destroy(); } catch (e) {}
+                }
+              }
+            }
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${user.username} was BANNED by ${player.username} (${reason}).`]));
+            return;
+          }
+
+          if (cmd === 'unban') {
+            const isStaff = player.isAdmin || player.isMod;
+            if (!isStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only server administrators can unban players.']));
+              return;
+            }
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /unban <username>']));
+              return;
+            }
+            const user = this.userManager.getUser(args[0]);
+            if (!user) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `User '${args[0]}' not found.`]));
+              return;
+            }
+            user.isBanned = false;
+            delete user.banReason;
+            this.userManager.saveUser(user.username);
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `Unbanned user ${user.username}.`]));
+            return;
+          }
+
+          if (cmd === 'mute') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to mute players.']));
+              return;
+            }
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /mute <username>']));
+              return;
+            }
+            const targetName = args[0].toLowerCase();
+            let target = null;
+            for (const p of room.players.values()) {
+              if (p.username.toLowerCase() === targetName) { target = p; break; }
+            }
+            if (!target) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Player '${args[0]}' not found.`]));
+              return;
+            }
+            target.isMuted = true;
+            target.send(new PlayerIOMessage('write', ['* SYSTEM', 'You have been muted by a moderator.']));
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${target.username} was muted by ${player.username}.`]));
+            return;
+          }
+
+          if (cmd === 'unmute') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to unmute players.']));
+              return;
+            }
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /unmute <username>']));
+              return;
+            }
+            const targetName = args[0].toLowerCase();
+            let target = null;
+            for (const p of room.players.values()) {
+              if (p.username.toLowerCase() === targetName) { target = p; break; }
+            }
+            if (target) {
+              target.isMuted = false;
+              target.send(new PlayerIOMessage('write', ['* SYSTEM', 'You have been unmuted.']));
+            }
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `Unmuted player '${args[0]}'.`]));
+            return;
+          }
+
+          if (cmd === 'givegems') {
+            const isStaff = player.isAdmin || player.isMod;
+            if (!isStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only server administrators can give gems.']));
+              return;
+            }
+            if (args.length < 2) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /givegems <username> <amount>']));
+              return;
+            }
+            const targetUser = this.userManager.getUser(args[0]);
+            const amount = parseInt(args[1]);
+            if (!targetUser || isNaN(amount)) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Invalid user or amount.']));
+              return;
+            }
+            targetUser.gems = (targetUser.gems || 0) + amount;
+            this.userManager.saveUser(targetUser.username);
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} gave ${amount} gems to ${targetUser.username}! (Total: ${targetUser.gems})`]));
+            return;
+          }
+
+          if (cmd === 'giveenergy') {
+            const isStaff = player.isAdmin || player.isMod;
+            if (!isStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only server administrators can give energy.']));
+              return;
+            }
+            if (args.length < 2) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /giveenergy <username> <amount>']));
+              return;
+            }
+            const targetUser = this.userManager.getUser(args[0]);
+            const amount = parseInt(args[1]);
+            if (!targetUser || isNaN(amount)) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Invalid user or amount.']));
+              return;
+            }
+            targetUser.energy = Math.min(targetUser.maxEnergy || 200, (targetUser.energy || 0) + amount);
+            this.userManager.saveUser(targetUser.username);
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} gave ${amount} energy to ${targetUser.username}!`]));
+            return;
+          }
+
+          if (cmd === 'giveitem') {
+            const isStaff = player.isAdmin || player.isMod;
+            if (!isStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only server administrators can give items.']));
+              return;
+            }
+            if (args.length < 2) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /giveitem <username> <itemId>']));
+              return;
+            }
+            const targetUser = this.userManager.getUser(args[0]);
+            const itemId = args[1];
+            if (!targetUser) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'User not found.']));
+              return;
+            }
+            if (!targetUser.payVault) targetUser.payVault = [];
+            if (!targetUser.payVault.includes(itemId)) targetUser.payVault.push(itemId);
+            this.userManager.saveUser(targetUser.username);
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} granted item '${itemId}' to ${targetUser.username}!`]));
+            return;
+          }
+
+          if (cmd === 'broadcast' || cmd === 'alert') {
+            const isStaff = player.isAdmin || player.isMod;
+            if (!isStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only server administrators can broadcast.']));
+              return;
+            }
+            const alertText = args.join(' ');
+            if (!alertText) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /broadcast <message>']));
+              return;
+            }
+            const globalMsg = new PlayerIOMessage('write', ['* GLOBAL ANNOUNCEMENT', alertText]);
+            for (const r of this.rooms.values()) {
+              this.broadcastToRoom(r, globalMsg);
+            }
+            return;
+          }
+
+          if (cmd === 'givexp') {
+            const isStaff = player.isAdmin || player.isMod;
+            if (!isStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only server administrators can give XP.']));
+              return;
+            }
+            if (args.length < 2) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /givexp <username> <amount>']));
+              return;
+            }
+            const targetUser = this.userManager.getUser(args[0]);
+            const amount = parseInt(args[1]);
+            if (!targetUser || isNaN(amount)) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Invalid user or amount.']));
+              return;
+            }
+            this.achievementManager.addXP(targetUser, amount, (msg) => {
+              this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
+            });
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} gave ${amount} XP to ${targetUser.username}!`]));
+            return;
+          }
+
+          if (cmd === 'stats' || cmd === 'level' || cmd === 'rank') {
+            const targetName = args[0] || player.username;
+            const targetUser = this.userManager.getUser(targetName);
+            if (!targetUser) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `User '${targetName}' not found.`]));
+              return;
+            }
+            const data = this.achievementManager.getUserAchievements(targetUser);
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `--- STATS: ${targetUser.username} ---`]));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `⭐ Level: ${data.levelInfo.level} | XP: ${data.levelInfo.xp} / ${data.levelInfo.nextLevelXP} (${data.levelInfo.percent}%)`]));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `💎 Gems: ${targetUser.gems || 0} | ⚡ Energy: ${targetUser.energy || 0}/${targetUser.maxEnergy || 200}`]));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `🧱 Blocks Placed: ${data.stats.blocksPlaced || 0} | 🦘 Jumps: ${data.stats.jumps || 0}`]));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `🏆 Achievements Unlocked: ${data.totalUnlocked} / ${data.totalAvailable}`]));
+            return;
+          }
+
+          if (cmd === 'achievements' || cmd === 'badges') {
+            const user = this.userManager.getUser(player.username);
+            const data = this.achievementManager.getUserAchievements(user);
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `--- ACHIEVEMENTS (${data.totalUnlocked}/${data.totalAvailable}) ---`]));
+            for (const ach of data.achievements) {
+              const status = ach.unlocked ? '✅ [UNLOCKED]' : `⏳ [${ach.progress}% - ${ach.current}/${ach.target}]`;
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `${ach.icon} ${ach.title}: ${status} (+${ach.rewardXP} XP, +${ach.rewardGems} 💎)`]));
+            }
             return;
           }
 
           if (cmd === 'help') {
-            player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Available commands: /removeedit [user], /giveedit <user>, /givegod [user], /removegod [user], /clear, /god, /save, /help']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '--- WORLDEDIT & BUILDER COMMANDS ---']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '/fill, /bgfill, /replace, /undo, /clear, /setspawn, /worldtitle, /worlddesc, /export']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '--- STATS & ACHIEVEMENTS ---']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '/stats [user], /level [user], /achievements, /badges']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '--- MODERATION & ADMIN COMMANDS ---']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '/kick <user>, /ban <user>, /unban <user>, /mute <user>, /unmute <user>']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '/givegems <user> <amt>, /giveenergy <user> <amt>, /givexp <user> <amt>, /giveitem <user> <item>']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '/tp <player>, /tphere <player>, /broadcast <message>, /god, /giveedit <user>']));
             return;
           }
+        }
+
+        if (player.isMuted) {
+          player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You are currently muted and cannot send chat messages.']));
+          return;
         }
 
         if (player.username.toLowerCase().startsWith('guest')) {
@@ -1682,6 +2417,14 @@ class Server {
           return;
         }
         console.log(`[Chat] ${player.username}: ${text}`);
+
+        // Track chat stat
+        const uChat = this.userManager.getUser(player.username);
+        if (uChat) {
+          this.achievementManager.trackStat(uChat, 'chatMessages', 1, (msg) => {
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
+          });
+        }
 
         // Broadcast 'say': playerId, text
         const sayMsg = new PlayerIOMessage('say', [player.id, text]);
@@ -1774,6 +2517,105 @@ class Server {
         console.log(`[Mod Mode] Player ${player.username} (ID: ${player.id}) modMode=${player.isInModMode}`);
         const modMsg = new PlayerIOMessage('mod', [player.id, player.isInModMode]);
         this.broadcastToRoom(room, modMsg);
+        break;
+      }
+
+      case 'getCrew': {
+        if (!player) return;
+        const crewNameOrId = msg.getString(0);
+        const crew = this.crewManager.getCrew(crewNameOrId);
+        const resp = new PlayerIOMessage('getCrew');
+        if (!crew) {
+          resp.add(true); // isError = true
+          player.send(resp);
+          break;
+        }
+
+        resp.add(false); // isError = false
+        resp.add(crew.id);
+        resp.add(crew.name);
+        resp.add(crew.subscribers || 0);
+        resp.add(crew.logoWorldId || 'PW_default');
+
+        const member = crew.members ? crew.members.find(m => m.username.toLowerCase() === player.username.toLowerCase()) : null;
+        const memberRankId = member ? (member.rank !== undefined ? member.rank : 2) : -1;
+        resp.add(memberRankId);
+
+        if (memberRankId >= 0) {
+          resp.add(memberRankId === 0); // canChangeColors
+          resp.add(memberRankId === 0); // canEditRanks
+        }
+
+        resp.add(crew.crewTextColor || 0xFFFFFF);
+        resp.add(crew.crewBackgroundColor || 0x1E293B);
+        resp.add(crew.crewBackground2ndColor || 0x0F172A);
+        resp.add(crew.faceplate || 'Castle');
+        resp.add(crew.faceplateColor || 0);
+
+        // Faceplates list (0 extra)
+        resp.add(0);
+
+        // Ranks
+        const ranks = crew.ranks || [{ id: 0, name: 'Leader' }, { id: 1, name: 'Officer' }, { id: 2, name: 'Member' }];
+        resp.add(ranks.length);
+        for (const r of ranks) {
+          resp.add(r.id);
+          resp.add(r.name);
+        }
+
+        // Rooms
+        const rooms = crew.rooms || ['PW_default'];
+        resp.add(rooms.length);
+        for (const rm of rooms) {
+          resp.add(rm);
+        }
+
+        // Members
+        for (const m of (crew.members || [])) {
+          resp.add(m.username);
+          resp.add(m.role || 'Member');
+          resp.add(m.rank !== undefined ? m.rank : 2);
+          resp.add(m.face !== undefined ? m.face : 0);
+          resp.add(Boolean(m.isOnline));
+        }
+
+        player.send(resp);
+        break;
+      }
+
+      case 'isSubscribedToCrew': {
+        if (!player) return;
+        const resp = new PlayerIOMessage('isSubscribedToCrew');
+        resp.add(false);
+        player.send(resp);
+        break;
+      }
+
+      case 'l': {
+        if (!player || !room) return;
+        // Like world packet
+        room.world.likes = (room.world.likes || 0) + 1;
+        room.world.saveToFile(this.worldsDir);
+        const userData = this.userManager.getUser(player.username);
+        if (userData && !userData.likedWorlds.includes(room.id)) {
+          userData.likedWorlds.push(room.id);
+          this.userManager.saveUser(player.username);
+        }
+        player.send(new PlayerIOMessage('write', ['* SYSTEM', `You liked ${room.world.title}!`]));
+        break;
+      }
+
+      case 'f': {
+        if (!player || !room) return;
+        // Favorite world packet
+        room.world.favorites = (room.world.favorites || 0) + 1;
+        room.world.saveToFile(this.worldsDir);
+        const userData = this.userManager.getUser(player.username);
+        if (userData && !userData.favorites.includes(room.id)) {
+          userData.favorites.push(room.id);
+          this.userManager.saveUser(player.username);
+        }
+        player.send(new PlayerIOMessage('write', ['* SYSTEM', `Added ${room.world.title} to your favorites!`]));
         break;
       }
 

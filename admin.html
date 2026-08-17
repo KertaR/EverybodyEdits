@@ -707,8 +707,12 @@
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
         <span>Shop Manager</span>
       </div>
+      <div class="nav-item" onclick="switchTab('livemap')">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
+        <span>Live World Map</span>
+      </div>
       <div class="nav-item" onclick="switchTab('console')">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
         <span>Live Console</span>
       </div>
       <div class="nav-item" onclick="window.open('/', '_blank')">
@@ -852,6 +856,7 @@
               <tr>
                 <th>Username</th>
                 <th>Role & Permissions</th>
+                <th>Level & XP</th>
                 <th>Gems</th>
                 <th>Energy</th>
                 <th>Gold Member</th>
@@ -861,7 +866,7 @@
               </tr>
             </thead>
             <tbody id="users-table-body">
-              <tr><td colspan="8" style="text-align: center; color: var(--text-muted);">Loading users...</td></tr>
+              <tr><td colspan="9" style="text-align: center; color: var(--text-muted);">Loading users...</td></tr>
             </tbody>
           </table>
         </div>
@@ -979,6 +984,53 @@
       </div>
     </section>
 
+    <!-- ===================================== -->
+    <!-- TAB 6: LIVE WORLD MAP                 -->
+    <!-- ===================================== -->
+    <section id="tab-livemap" class="tab-section">
+      <div class="card" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+          <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+            <label class="form-label" style="margin: 0; white-space: nowrap;">Selected Room:</label>
+            <select id="livemap-room-select" class="form-select" style="width: 220px;" onchange="loadLiveMap()">
+              <option value="PW_default">Home World (PW_default)</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="loadLiveMap(true)">↻ Refresh Map</button>
+          </div>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            <span class="badge badge-active" id="livemap-player-count">0 Players Online</span>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--text-muted); cursor: pointer;">
+              <input type="checkbox" id="livemap-auto-refresh" checked> Auto-refresh (2s)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 340px; gap: 24px;">
+        <!-- Canvas Map Card -->
+        <div class="card" style="display: flex; flex-direction: column; align-items: center; background: #000; overflow: auto; max-height: 650px; padding: 12px;">
+          <div style="display: flex; justify-content: space-between; width: 100%; margin-bottom: 8px; font-size: 0.8rem; color: var(--text-muted);">
+            <span id="livemap-world-info">World: PW_default (200x200)</span>
+            <span>Scale: 1 Pixel / Tile (Zoom: 2x)</span>
+          </div>
+          <canvas id="live-map-canvas" width="600" height="600" style="border: 1px solid #334155; border-radius: 6px; image-rendering: pixelated; background: #080d1a;"></canvas>
+        </div>
+
+        <!-- Room Players & Quick Moderation Actions Card -->
+        <div class="card" style="display: flex; flex-direction: column;">
+          <div class="card-header">
+            <h2 class="card-title">Live Players in Room</h2>
+          </div>
+          <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
+            Real-time coordinates and one-click moderation controls.
+          </p>
+          <div id="livemap-players-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 520px; overflow-y: auto;">
+            <p style="color: var(--text-muted); font-size: 0.85rem;">No players currently in this room.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
   </main>
 
   <!-- ===================================== -->
@@ -1021,18 +1073,37 @@
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">Level</label>
+            <input type="number" id="edit-user-level" class="form-input" min="1" value="1">
+          </div>
+          <div class="form-group">
+            <label class="form-label">XP</label>
+            <input type="number" id="edit-user-xp" class="form-input" min="0" value="0">
+          </div>
           <div class="form-group">
             <label class="form-label">Max Energy</label>
             <input type="number" id="edit-user-maxenergy" class="form-input" min="100">
           </div>
           <div class="form-group">
-            <label class="form-label">Face / Smiley ID</label>
+            <label class="form-label">Face ID</label>
             <input type="number" id="edit-user-face" class="form-input" min="0">
           </div>
           <div class="form-group">
-            <label class="form-label">Aura / Color</label>
+            <label class="form-label">Aura ID</label>
             <input type="number" id="edit-user-aura" class="form-input" min="0">
+          </div>
+        </div>
+
+        <!-- Achievements & Stats Card inside Modal -->
+        <div id="modal-user-achievements-container" style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px; margin-bottom: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <strong style="color: #fff; font-size: 0.9rem;">🏆 Unlocked Achievements & Stats</strong>
+            <span id="modal-user-ach-count" class="badge badge-gold" style="font-size: 0.7rem;">0 / 10 Unlocked</span>
+          </div>
+          <div id="modal-user-ach-list" style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 100px; overflow-y: auto;">
+            <!-- Loaded dynamically -->
           </div>
         </div>
 
@@ -1161,7 +1232,8 @@
         'users': 1,
         'worlds': 2,
         'shop': 3,
-        'console': 4
+        'livemap': 4,
+        'console': 5
       };
       const navItems = document.querySelectorAll('.nav-item');
       if (navMap[tabId] !== undefined && navItems[navMap[tabId]]) {
@@ -1173,6 +1245,7 @@
         'users': ['User Management', 'Inspect, modify resources, roles, and inventories'],
         'worlds': ['World & Room Manager', 'Manage worlds, room edit codes, and live players'],
         'shop': ['Shop Catalog & Prices', 'Configure items, gem/energy costs, and featured status'],
+        'livemap': ['Live World Map', 'Real-time interactive canvas view of the world and online players'],
         'console': ['Live Server Console', 'Real-time logs, socket activity, and broadcasts']
       };
 
@@ -1184,6 +1257,7 @@
       if (tabId === 'users') { fetchUsers(); loadShopItems(); }
       if (tabId === 'worlds') fetchWorlds();
       if (tabId === 'shop') loadShopItems();
+      if (tabId === 'livemap') loadLiveMap();
       if (tabId === 'console') fetchLogs();
     }
 
@@ -1285,6 +1359,7 @@
           <tr>
             <td><strong>${u.username}</strong></td>
             <td>${badge}</td>
+            <td><span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #facc15; font-weight: 700;">Lv.${u.level || 1}</span> <small style="color: var(--text-muted);">(${u.xp || 0} XP)</small></td>
             <td><span style="color: #38bdf8; font-weight: 600;">💎 ${u.gems}</span></td>
             <td><span style="color: #4ade80; font-weight: 600;">⚡ ${u.energy}/${u.maxEnergy}</span></td>
             <td>${goldBadge}</td>
@@ -1417,21 +1492,42 @@
       renderModalItemsGrid();
     }
 
+    function setElValue(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.value = val !== undefined && val !== null ? val : '';
+    }
+
+    function setElChecked(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.checked = Boolean(val);
+    }
+
     async function openNewUserModal() {
       if (allShopItems.length === 0) await loadShopItems();
-      document.getElementById('modal-user-title').innerText = 'Create New User';
-      document.getElementById('edit-user-username').value = '';
-      document.getElementById('edit-user-username').disabled = false;
-      document.getElementById('edit-user-password').value = 'user123';
-      document.getElementById('edit-user-role').value = 'user';
-      document.getElementById('edit-user-gems').value = 500;
-      document.getElementById('edit-user-energy').value = 100;
-      document.getElementById('edit-user-maxenergy').value = 200;
-      document.getElementById('edit-user-face').value = 0;
-      document.getElementById('edit-user-aura').value = 0;
-      document.getElementById('edit-user-isadmin').checked = false;
-      document.getElementById('edit-user-isgold').checked = true;
-      document.getElementById('edit-user-isbanned').checked = false;
+      const titleEl = document.getElementById('modal-user-title');
+      if (titleEl) titleEl.innerText = 'Create New User';
+
+      setElValue('edit-user-username', '');
+      const userEl = document.getElementById('edit-user-username');
+      if (userEl) userEl.disabled = false;
+
+      setElValue('edit-user-password', 'user123');
+      setElValue('edit-user-role', 'user');
+      setElValue('edit-user-gems', 500);
+      setElValue('edit-user-energy', 100);
+      setElValue('edit-user-level', 1);
+      setElValue('edit-user-xp', 0);
+      setElValue('edit-user-maxenergy', 200);
+      setElValue('edit-user-face', 0);
+      setElValue('edit-user-aura', 0);
+      setElChecked('edit-user-isadmin', false);
+      setElChecked('edit-user-isgold', true);
+      setElChecked('edit-user-isbanned', false);
+
+      const achList = document.getElementById('modal-user-ach-list');
+      if (achList) achList.innerHTML = '<span style="color: var(--text-muted); font-size: 0.8rem;">No achievements unlocked yet.</span>';
+      const achCount = document.getElementById('modal-user-ach-count');
+      if (achCount) achCount.innerText = '0 / 10 Unlocked';
 
       currentUserPayVault = new Set(['pro', 'goldmember']);
       currentModalCategory = 'all';
@@ -1446,19 +1542,46 @@
       const u = allUsers.find(x => x.username.toLowerCase() === username.toLowerCase());
       if (!u) return;
 
-      document.getElementById('modal-user-title').innerText = `Edit User: ${u.username}`;
-      document.getElementById('edit-user-username').value = u.username;
-      document.getElementById('edit-user-username').disabled = true;
-      document.getElementById('edit-user-password').value = '';
-      document.getElementById('edit-user-role').value = u.role || 'user';
-      document.getElementById('edit-user-gems').value = u.gems;
-      document.getElementById('edit-user-energy').value = u.energy;
-      document.getElementById('edit-user-maxenergy').value = u.maxEnergy;
-      document.getElementById('edit-user-face').value = u.face;
-      document.getElementById('edit-user-aura').value = u.aura;
-      document.getElementById('edit-user-isadmin').checked = Boolean(u.isAdmin);
-      document.getElementById('edit-user-isgold').checked = Boolean(u.goldmember);
-      document.getElementById('edit-user-isbanned').checked = Boolean(u.isBanned);
+      const titleEl = document.getElementById('modal-user-title');
+      if (titleEl) titleEl.innerText = `Edit User: ${u.username}`;
+
+      setElValue('edit-user-username', u.username);
+      const userEl = document.getElementById('edit-user-username');
+      if (userEl) userEl.disabled = true;
+
+      setElValue('edit-user-password', '');
+      setElValue('edit-user-role', u.role || 'user');
+      setElValue('edit-user-level', u.level || 1);
+      setElValue('edit-user-xp', u.xp || 0);
+      setElValue('edit-user-gems', u.gems);
+      setElValue('edit-user-energy', u.energy);
+      setElValue('edit-user-maxenergy', u.maxEnergy);
+      setElValue('edit-user-face', u.face);
+      setElValue('edit-user-aura', u.aura);
+      setElChecked('edit-user-isadmin', u.isAdmin);
+      setElChecked('edit-user-isgold', u.goldmember);
+      setElChecked('edit-user-isbanned', u.isBanned);
+
+      // Load achievements
+      try {
+        const achRes = await fetch(`/api/admin/achievements?username=${encodeURIComponent(u.username)}`);
+        const achData = await achRes.json();
+        if (achData.success) {
+          const achCount = document.getElementById('modal-user-ach-count');
+          if (achCount) achCount.innerText = `${achData.totalUnlocked} / ${achData.totalAvailable} Unlocked`;
+          const achListEl = document.getElementById('modal-user-ach-list');
+          if (achListEl) {
+            achListEl.innerHTML = achData.achievements.map(a => {
+              const bg = a.unlocked ? 'rgba(34, 197, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)';
+              const border = a.unlocked ? '1px solid rgba(34, 197, 94, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)';
+              const color = a.unlocked ? '#86efac' : '#94a3b8';
+              return `<div style="background: ${bg}; border: ${border}; border-radius: 6px; padding: 4px 8px; font-size: 0.75rem; color: ${color};" title="${a.description} (${a.progress}%)">${a.icon} ${a.title} ${a.unlocked ? '✓' : `(${a.progress}%)`}</div>`;
+            }).join('');
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load achievements:', e);
+      }
 
       currentUserPayVault = new Set(u.payVault || []);
       currentModalCategory = 'all';
@@ -1479,6 +1602,8 @@
         username: username,
         password: document.getElementById('edit-user-password').value || undefined,
         role: document.getElementById('edit-user-role').value,
+        level: Number(document.getElementById('edit-user-level').value),
+        xp: Number(document.getElementById('edit-user-xp').value),
         gems: Number(document.getElementById('edit-user-gems').value),
         energy: Number(document.getElementById('edit-user-energy').value),
         maxEnergy: Number(document.getElementById('edit-user-maxenergy').value),
@@ -1828,11 +1953,178 @@
       }
     }
 
+    // ==========================================
+    // 6. LIVE WORLD MAP & MODERATION ACTIONS
+    // ==========================================
+
+    let currentLiveRoomData = null;
+
+    async function loadLiveMap(manual = false) {
+      const roomSelect = document.getElementById('livemap-room-select');
+      const roomId = roomSelect.value || 'PW_default';
+
+      try {
+        const res = await fetch(`/api/admin/live-map?room=${encodeURIComponent(roomId)}`);
+        const data = await res.json();
+        if (data.success) {
+          currentLiveRoomData = data;
+          document.getElementById('livemap-world-info').innerText = `World: ${data.room.title || data.room.id} (${data.room.width}x${data.room.height}) | Spawn: (${data.room.spawnX}, ${data.room.spawnY})`;
+          document.getElementById('livemap-player-count').innerText = `${data.players.length} Players Online`;
+
+          renderLiveMapCanvas(data);
+          renderLiveMapPlayers(data.players);
+          if (manual) showToast('Live map updated');
+        }
+      } catch (err) {
+        console.error('Failed to load live map:', err);
+      }
+    }
+
+    function renderLiveMapCanvas(data) {
+      const canvas = document.getElementById('live-map-canvas');
+      const ctx = canvas.getContext('2d');
+      const width = data.room.width || 200;
+      const height = data.room.height || 200;
+      const scale = 3; // 3px per tile for clear view
+
+      if (canvas.width !== width * scale || canvas.height !== height * scale) {
+        canvas.width = width * scale;
+        canvas.height = height * scale;
+      }
+
+      // 1. Background Fill
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 2. Draw Background layer
+      const bgGrid = data.background || [];
+      for (let y = 0; y < bgGrid.length; y++) {
+        for (let x = 0; x < bgGrid[y].length; x++) {
+          const bgId = bgGrid[y][x];
+          if (bgId > 0) {
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(x * scale, y * scale, scale, scale);
+          }
+        }
+      }
+
+      // 3. Draw Foreground layer
+      const fgGrid = data.foreground || [];
+      for (let y = 0; y < fgGrid.length; y++) {
+        for (let x = 0; x < fgGrid[y].length; x++) {
+          const blockId = fgGrid[y][x];
+          if (blockId === 0) continue;
+
+          // Color palette for block types
+          if (blockId === 9) ctx.fillStyle = '#64748b'; // Gray border
+          else if (blockId >= 1 && blockId <= 15) ctx.fillStyle = '#3b82f6'; // Basic blocks
+          else if (blockId === 361 || (blockId >= 1625 && blockId <= 1635)) ctx.fillStyle = '#ef4444'; // Spikes / hazards
+          else if (blockId >= 200 && blockId <= 300) ctx.fillStyle = '#f59e0b'; // Action / Keys / Doors
+          else if (blockId >= 1000 && blockId <= 1010) ctx.fillStyle = '#06b6d4'; // One-way
+          else ctx.fillStyle = '#a855f7'; // Special / Deco
+
+          ctx.fillRect(x * scale, y * scale, scale, scale);
+        }
+      }
+
+      // 4. Draw Spawn marker
+      const spawnX = data.room.spawnX || 16;
+      const spawnY = data.room.spawnY || 16;
+      ctx.strokeStyle = '#22c55e';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(spawnX * scale - 2, spawnY * scale - 2, scale + 4, scale + 4);
+
+      // 5. Draw Players with avatars & name tags
+      const players = data.players || [];
+      for (const p of players) {
+        const px = (p.x / 16) * scale;
+        const py = (p.y / 16) * scale;
+
+        // Player Dot / Glow
+        ctx.fillStyle = p.isGod ? '#facc15' : '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(px + scale / 2, py + scale / 2, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Name tag
+        ctx.font = '10px sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.fillText(p.username, px + scale / 2, py - 6);
+      }
+    }
+
+    function renderLiveMapPlayers(players) {
+      const container = document.getElementById('livemap-players-list');
+      if (!players || players.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem; padding: 10px;">No players currently in this room.</p>';
+        return;
+      }
+
+      container.innerHTML = players.map(p => {
+        const tileX = Math.round(p.x / 16);
+        const tileY = Math.round(p.y / 16);
+        const godBadge = p.isGod ? '<span class="badge badge-gold" style="font-size:0.65rem;">GOD</span>' : '';
+        const muteBadge = p.isMuted ? '<span class="badge" style="background:#ef4444;color:#fff;font-size:0.65rem;">MUTED</span>' : '';
+
+        return `
+          <div style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <div>
+                <strong>${p.username}</strong>
+                ${godBadge} ${muteBadge}
+              </div>
+              <span style="font-size: 0.75rem; color: var(--text-muted);">(${tileX}, ${tileY})</span>
+            </div>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 0.75rem;" onclick="adminAction('givegems', '${p.username}', 100)">💎 +100</button>
+              <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 0.75rem;" onclick="adminAction('giveenergy', '${p.username}', 100)">⚡ +100</button>
+              <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 0.75rem;" onclick="adminAction('${p.isMuted ? 'unmute' : 'mute'}', '${p.username}')">${p.isMuted ? '🔊 Unmute' : '🔇 Mute'}</button>
+              <button class="btn btn-danger btn-sm" style="padding: 3px 8px; font-size: 0.75rem;" onclick="adminAction('kick', '${p.username}')">👢 Kick</button>
+              <button class="btn btn-danger btn-sm" style="padding: 3px 8px; font-size: 0.75rem;" onclick="adminAction('ban', '${p.username}')">🚫 Ban</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function adminAction(action, username, amount = 100, itemId = '') {
+      if (action === 'kick' || action === 'ban') {
+        const confirmMsg = `Are you sure you want to ${action.toUpperCase()} ${username}?`;
+        if (!confirm(confirmMsg)) return;
+      }
+
+      try {
+        const res = await fetch('/api/admin/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, username, amount, itemId, reason: 'Admin panel action' })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message || 'Action executed successfully');
+          loadLiveMap();
+          fetchStats();
+        } else {
+          showToast(data.error || 'Action failed', 'error');
+        }
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
     // Initial Load & Periodic Poll
     fetchStats();
     loadShopItems();
     setInterval(fetchStats, 3000);
     setInterval(fetchLogs, 3000);
+    setInterval(() => {
+      const liveSection = document.getElementById('tab-livemap');
+      if (liveSection && liveSection.classList.contains('active')) {
+        const auto = document.getElementById('livemap-auto-refresh');
+        if (auto && auto.checked) loadLiveMap();
+      }
+    }, 2000);
   </script>
 </body>
 </html>

@@ -1,0 +1,45 @@
+{
+  "id": "eelegends",
+  "name": "EE Legends",
+  "owner": "KertaR",
+  "subscribers": 420,
+  "logoWorldId": "PW_default",
+  "crewTextColor": 65484,
+  "crewBackgroundColor": 988970,
+  "crewBackground2ndColor": 527642,
+  "faceplate": "Electric",
+  "faceplateColor": 0,
+  "ranks": [
+    {
+      "id": 0,
+      "name": "Leader"
+    },
+    {
+      "id": 1,
+      "name": "Officer"
+    },
+    {
+      "id": 2,
+      "name": "Member"
+    }
+  ],
+  "rooms": [
+    "PW_default"
+  ],
+  "members": [
+    {
+      "username": "KertaR",
+      "rank": 0,
+      "role": "Leader",
+      "face": 16,
+      "isOnline": true
+    },
+    {
+      "username": "Player",
+      "rank": 2,
+      "role": "Builder",
+      "face": 0,
+      "isOnline": false
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "id": "everybodyeditsstaff",
+  "name": "Everybody Edits Staff",
+  "owner": "Admin",
+  "subscribers": 1337,
+  "logoWorldId": "crewstaff",
+  "crewTextColor": 16766720,
+  "crewBackgroundColor": 1712696,
+  "crewBackground2ndColor": 1119781,
+  "faceplate": "Gold",
+  "faceplateColor": 0,
+  "ranks": [
+    {
+      "id": 0,
+      "name": "Admin"
+    },
+    {
+      "id": 1,
+      "name": "Moderator"
+    },
+    {
+      "id": 2,
+      "name": "Staff Member"
+    }
+  ],
+  "rooms": [
+    "crewstaff"
+  ],
+  "members": [
+    {
+      "username": "Admin",
+      "rank": 0,
+      "role": "Server Owner",
+      "face": 0,
+      "isOnline": true
+    },
+    {
+      "username": "KertaR",
+      "rank": 0,
+      "role": "Lead Developer",
+      "face": 16,
+      "isOnline": true
+    }
+  ]
+}
