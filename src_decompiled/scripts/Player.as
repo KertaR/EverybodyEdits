@@ -1338,6 +1338,7 @@ package
                this.lastJump = -new Date().time;
                injump = true;
                mod = -1;
+               this.spacejustdown = false;
             }
             if(this.spacedown)
             {

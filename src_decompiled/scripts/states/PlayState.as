@@ -326,6 +326,10 @@ package states
             _loc13_.isDead = false;
             _loc13_.spacedown = param11;
             _loc13_.spacejustdown = param12;
+            if(param12)
+            {
+               _loc13_.lastJump = -new Date().time;
+            }
             if(!_loc13_.hasLevitation)
             {
                return;

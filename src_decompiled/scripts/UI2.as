@@ -1152,7 +1152,7 @@ package
                      continue;
                   }
                }
-               if(!(Boolean(Bl.data.canUseAllItems || _loc11_.payvaultid == "" || this.base.client.payVault.has(_loc11_.payvaultid)) || Boolean(_loc11_.payvaultid == "pro" && Global.player_is_beta_member) || _loc11_.payvaultid == "goldmember" && Global.playerObject.goldmember))
+               if(!(Boolean(Bl.data.canUseAllItems || _loc11_.payvaultid == "" || this.base.client.payVault.has(_loc11_.payvaultid) || (_loc11_.payvaultid.indexOf("brickeffect") == 0 && this.base.client.payVault.has("brickeffect"))) || Boolean(_loc11_.payvaultid == "pro" && Global.player_is_beta_member) || _loc11_.payvaultid == "goldmember" && Global.playerObject.goldmember))
                {
                   continue;
                }

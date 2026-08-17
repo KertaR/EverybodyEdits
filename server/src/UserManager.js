@@ -120,6 +120,21 @@ class UserManager {
       Object.assign(user, updateData);
       this.saveUser(user.username);
     }
+    return user;
+  }
+
+  deleteUser(username) {
+    if (!username) return false;
+    const key = username.trim().toLowerCase();
+    this.users.delete(key);
+    const filePath = path.join(this.usersDir, `${key}.json`);
+    if (fs.existsSync(filePath)) {
+      try {
+        fs.unlinkSync(filePath);
+        return true;
+      } catch (e) {}
+    }
+    return true;
   }
 }
 

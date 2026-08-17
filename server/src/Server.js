@@ -22,6 +22,8 @@ class Server {
     // Rooms map: roomId -> { world: World, players: Map<id, Player>, nextPlayerId: number }
     this.rooms = new Map();
     this.tcpServer = null;
+    this.logs = [];
+    this.startTime = Date.now();
 
     // Block IDs that are rotatable (from ItemId.isBlockRotateable + spikes + NonRotatableHalfBlock)
     // Values extracted from items/ItemId.as constants
@@ -99,6 +101,16 @@ class Server {
     return this.NPC_BLOCKS.has(blockId);
   }
 
+  addLog(type, text) {
+    const entry = {
+      timestamp: new Date().toLocaleTimeString(),
+      type: type || 'info',
+      text: String(text)
+    };
+    this.logs.push(entry);
+    if (this.logs.length > 250) this.logs.shift();
+  }
+
   getOrCreateRoom(roomId, creatorUsername = 'Admin') {
     if (!this.rooms.has(roomId)) {
       const world = new World(roomId);
@@ -137,11 +149,28 @@ class Server {
           req.on('end', () => {
             try {
               const data = JSON.parse(body || '{}');
-              const user = this.userManager.register(data.username || 'User', data.password || 'user123', data.email || '');
+              const username = (data.username || '').trim();
+              const password = (data.password !== undefined) ? String(data.password) : '';
+              const email = (data.email || '').trim();
+
+              if (!username) {
+                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Username required' }));
+                return;
+              }
+
+              let existing = this.userManager.getUser(username);
+              if (existing) {
+                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Username is already taken' }));
+                return;
+              }
+
+              const user = this.userManager.register(username, password || 'user123', email);
               res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
               res.end(JSON.stringify({ success: true, user }));
             } catch (e) {
-              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
               res.end(JSON.stringify({ success: false, error: e.message }));
             }
           });
@@ -155,14 +184,35 @@ class Server {
           req.on('end', () => {
             try {
               const data = JSON.parse(body || '{}');
-              let user = this.userManager.getUser(data.username);
-              if (!user && data.username) {
-                user = this.userManager.register(data.username, data.password || 'user123');
+              const username = (data.username || '').trim();
+              const password = (data.password !== undefined) ? String(data.password) : '';
+
+              if (!username) {
+                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Username required' }));
+                return;
               }
+
+              let user = this.userManager.getUser(username);
+              if (!user) {
+                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Email not registered.' }));
+                return;
+              }
+
+              if (user.password !== password) {
+                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Password incorrect' }));
+                return;
+              }
+
+              user.lastLogin = new Date().toISOString();
+              this.userManager.saveUser(user.username);
+
               res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
               res.end(JSON.stringify({ success: true, user }));
             } catch (e) {
-              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
               res.end(JSON.stringify({ success: false, error: e.message }));
             }
           });
@@ -568,7 +618,430 @@ class Server {
           return;
         }
 
+        // ==========================================
+        // ADMIN CONTROL PANEL (ACP) REST API ENDPOINTS
+        // ==========================================
+
+        // Admin: Get Server Stats & Metrics
+        if (req.method === 'GET' && reqPath === '/api/admin/stats') {
+          let totalPlayers = 0;
+          for (const r of this.rooms.values()) {
+            totalPlayers += r.players.size;
+          }
+          const mem = process.memoryUsage();
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({
+            success: true,
+            uptime: Math.floor((Date.now() - this.startTime) / 1000),
+            onlinePlayers: totalPlayers,
+            activeRooms: this.rooms.size,
+            totalUsers: this.userManager.users.size,
+            memoryMB: Math.round(mem.heapUsed / 1024 / 1024),
+            rssMB: Math.round(mem.rss / 1024 / 1024),
+            tcpPort: this.port,
+            httpPort: 8080,
+            policyPort: 843
+          }));
+          return;
+        }
+
+        // Admin: Get All Users
+        if (req.method === 'GET' && reqPath === '/api/admin/users') {
+          const usersList = [];
+          for (const [key, u] of this.userManager.users) {
+            usersList.push({
+              username: u.username,
+              email: u.email || '',
+              role: u.role || (u.isAdmin ? 'admin' : (u.isMod ? 'mod' : 'user')),
+              isAdmin: Boolean(u.isAdmin || u.role === 'admin'),
+              isMod: Boolean(u.isMod || u.role === 'mod'),
+              isBanned: Boolean(u.isBanned),
+              gems: u.gems !== undefined ? u.gems : 500,
+              energy: u.energy !== undefined ? u.energy : 100,
+              maxEnergy: u.maxEnergy !== undefined ? u.maxEnergy : 200,
+              face: u.face !== undefined ? u.face : 0,
+              aura: u.aura !== undefined ? u.aura : 0,
+              auraColor: u.auraColor !== undefined ? u.auraColor : 0,
+              badge: u.badge || '',
+              goldmember: Boolean(u.goldmember || u.isGold),
+              payVaultCount: Array.isArray(u.payVault) ? u.payVault.length : 0,
+              payVault: u.payVault || [],
+              registeredAt: u.registeredAt || '',
+              lastLogin: u.lastLogin || ''
+            });
+          }
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ success: true, users: usersList }));
+          return;
+        }
+
+        // Admin: Create or Update User
+        if (req.method === 'POST' && reqPath === '/api/admin/user/save') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const username = String(data.username || '').trim();
+              if (!username) {
+                res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Username is required' }));
+                return;
+              }
+              let user = this.userManager.getUser(username);
+              if (!user) {
+                user = this.userManager.register(username, data.password || 'user123', data.email || '');
+              }
+              if (data.password) user.password = data.password;
+              if (data.email !== undefined) user.email = data.email;
+              if (data.role !== undefined) user.role = data.role;
+              if (data.isAdmin !== undefined) user.isAdmin = Boolean(data.isAdmin);
+              if (data.isMod !== undefined) user.isMod = Boolean(data.isMod);
+              if (data.isBanned !== undefined) user.isBanned = Boolean(data.isBanned);
+              if (data.goldmember !== undefined) user.goldmember = Boolean(data.goldmember);
+              if (data.gems !== undefined) user.gems = Number(data.gems);
+              if (data.energy !== undefined) user.energy = Number(data.energy);
+              if (data.maxEnergy !== undefined) user.maxEnergy = Number(data.maxEnergy);
+              if (data.face !== undefined) user.face = Number(data.face);
+              if (data.aura !== undefined) user.aura = Number(data.aura);
+              if (data.auraColor !== undefined) user.auraColor = Number(data.auraColor);
+              if (data.badge !== undefined) user.badge = String(data.badge);
+              if (Array.isArray(data.payVault)) user.payVault = data.payVault;
+
+              this.userManager.saveUser(user.username);
+              this.addLog('admin', `Admin updated user: ${user.username}`);
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true, user }));
+            } catch (e) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
+        // Admin: Delete User
+        if (req.method === 'POST' && reqPath === '/api/admin/user/delete') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const username = String(data.username || '').trim();
+              if (!username) {
+                res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Username is required' }));
+                return;
+              }
+              this.userManager.deleteUser(username);
+              this.addLog('admin', `Admin deleted user: ${username}`);
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
+        // Admin: Get Detailed Worlds List
+        if (req.method === 'GET' && reqPath === '/api/admin/worlds') {
+          try {
+            const files = fs.readdirSync(this.worldsDir).filter(f => f.endsWith('.json'));
+            const worlds = files.map(filename => {
+              const worldId = filename.replace('.json', '');
+              const filePath = path.join(this.worldsDir, filename);
+              let title = worldId;
+              let owner = 'Admin';
+              let editKey = '';
+              let width = 200;
+              let height = 200;
+              let plays = 1;
+              let likes = 0;
+              let favorites = 0;
+              try {
+                const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                if (data.title) title = data.title;
+                if (data.owner) owner = data.owner;
+                if (data.editKey) editKey = data.editKey;
+                if (data.width) width = data.width;
+                if (data.height) height = data.height;
+                if (data.plays) plays = data.plays;
+                if (data.likes) likes = data.likes;
+                if (data.favorites) favorites = data.favorites;
+              } catch (e) {}
+
+              const room = this.rooms.get(worldId);
+              const playersInRoom = [];
+              if (room) {
+                for (const p of room.players.values()) {
+                  playersInRoom.push({
+                    id: p.id,
+                    username: p.username,
+                    canEdit: Boolean(p.canEdit),
+                    isGod: Boolean(p.isGod),
+                    isOwner: Boolean(p.isOwner)
+                  });
+                }
+              }
+
+              return {
+                id: worldId,
+                title,
+                owner,
+                editKey,
+                width,
+                height,
+                plays,
+                likes,
+                favorites,
+                isLoaded: Boolean(room),
+                onlineCount: playersInRoom.length,
+                players: playersInRoom
+              };
+            });
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ success: true, worlds }));
+          } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ success: false, error: e.message }));
+          }
+          return;
+        }
+
+        // Admin: Save World Metadata / Create World
+        if (req.method === 'POST' && reqPath === '/api/admin/world/save') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const worldId = String(data.id || '').trim();
+              if (!worldId) {
+                res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'World ID is required' }));
+                return;
+              }
+              const room = this.getOrCreateRoom(worldId, data.owner || 'Admin');
+              if (data.title !== undefined) room.world.title = data.title;
+              if (data.owner !== undefined) room.world.owner = data.owner;
+              if (data.editKey !== undefined) room.world.editKey = data.editKey;
+              if (data.width !== undefined) room.world.width = Number(data.width);
+              if (data.height !== undefined) room.world.height = Number(data.height);
+              room.world.saveToFile(this.worldsDir);
+
+              this.addLog('admin', `Admin saved world: ${worldId} (title: ${room.world.title})`);
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true, world: { id: room.world.id, title: room.world.title, owner: room.world.owner, editKey: room.world.editKey } }));
+            } catch (e) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
+        // Admin: Delete World
+        if (req.method === 'POST' && reqPath === '/api/admin/world/delete') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const worldId = String(data.id || '').trim();
+              if (!worldId || worldId === 'PW_default') {
+                res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Cannot delete this world' }));
+                return;
+              }
+              if (this.rooms.has(worldId)) {
+                const room = this.rooms.get(worldId);
+                const kickMsg = new PlayerIOMessage('write', ['* SYSTEM', 'This world has been deleted by an Administrator.']);
+                this.broadcastToRoom(room, kickMsg);
+                this.rooms.delete(worldId);
+              }
+              const filePath = path.join(this.worldsDir, `${worldId}.json`);
+              if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+              }
+              this.addLog('admin', `Admin deleted world: ${worldId}`);
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
+        // Admin: Broadcast System Announcement
+        if (req.method === 'POST' && reqPath === '/api/admin/broadcast') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const message = String(data.message || '').trim();
+              const roomId = data.roomId;
+              if (!message) {
+                res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Message is required' }));
+                return;
+              }
+              const sysMsg = new PlayerIOMessage('write', ['* SYSTEM (ADMIN)', message]);
+              if (roomId && this.rooms.has(roomId)) {
+                this.broadcastToRoom(this.rooms.get(roomId), sysMsg);
+                this.addLog('broadcast', `[Room: ${roomId}] ${message}`);
+              } else {
+                for (const r of this.rooms.values()) {
+                  this.broadcastToRoom(r, sysMsg);
+                }
+                this.addLog('broadcast', `[Global] ${message}`);
+              }
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
+        // Admin: Perform Action on Player or Room
+        if (req.method === 'POST' && reqPath === '/api/admin/room/action') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const { roomId, action, playerId, username } = data;
+              const room = this.rooms.get(roomId);
+              if (!room) {
+                res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Room not currently loaded or active' }));
+                return;
+              }
+
+              if (action === 'clear') {
+                room.world.clear();
+                this.broadcastToRoom(room, new PlayerIOMessage('clear'));
+                this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', 'World cleared by Administrator.']));
+                this.addLog('room', `Cleared world in room ${roomId}`);
+                res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: true, message: 'World cleared' }));
+                return;
+              }
+
+              let targetPlayer = null;
+              if (playerId) {
+                targetPlayer = room.players.get(Number(playerId));
+              } else if (username) {
+                const uName = username.toLowerCase();
+                for (const p of room.players.values()) {
+                  if (p && p.username && p.username.toLowerCase() === uName) {
+                    targetPlayer = p;
+                    break;
+                  }
+                }
+              }
+
+              if (!targetPlayer) {
+                res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Player not found in room' }));
+                return;
+              }
+
+              if (action === 'kick') {
+                targetPlayer.send(new PlayerIOMessage('write', ['* SYSTEM', 'You have been kicked by an Administrator.']));
+                targetPlayer.socket.destroy();
+                this.addLog('action', `Kicked ${targetPlayer.username} from room ${roomId}`);
+              } else if (action === 'giveedit') {
+                targetPlayer.canEdit = true;
+                targetPlayer.send(new PlayerIOMessage('access'));
+                this.broadcastToRoom(room, new PlayerIOMessage('editRights', [targetPlayer.id, true]));
+                this.addLog('action', `Gave edit to ${targetPlayer.username} in room ${roomId}`);
+              } else if (action === 'removeedit') {
+                targetPlayer.canEdit = false;
+                targetPlayer.isGod = false;
+                targetPlayer.send(new PlayerIOMessage('lostaccess'));
+                this.broadcastToRoom(room, new PlayerIOMessage('editRights', [targetPlayer.id, false]));
+                this.broadcastToRoom(room, new PlayerIOMessage('god', [targetPlayer.id, false]));
+                this.addLog('action', `Removed edit from ${targetPlayer.username} in room ${roomId}`);
+              } else if (action === 'givegod') {
+                targetPlayer.canToggleGodMode = true;
+                targetPlayer.isGod = true;
+                this.broadcastToRoom(room, new PlayerIOMessage('toggleGod', [targetPlayer.id, true]));
+                this.broadcastToRoom(room, new PlayerIOMessage('god', [targetPlayer.id, true]));
+                this.addLog('action', `Gave god mode to ${targetPlayer.username} in room ${roomId}`);
+              } else if (action === 'removegod') {
+                targetPlayer.canToggleGodMode = false;
+                targetPlayer.isGod = false;
+                this.broadcastToRoom(room, new PlayerIOMessage('god', [targetPlayer.id, false]));
+                this.broadcastToRoom(room, new PlayerIOMessage('toggleGod', [targetPlayer.id, false]));
+                this.addLog('action', `Removed god mode from ${targetPlayer.username} in room ${roomId}`);
+              }
+
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
+        // Admin: Get Logs
+        if (req.method === 'GET' && reqPath === '/api/admin/logs') {
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ success: true, logs: this.logs }));
+          return;
+        }
+
+        // Admin: Get Shop Items
+        if (req.method === 'GET' && reqPath === '/api/admin/shop') {
+          try {
+            const shopFile = path.join(__dirname, '../shop/items.json');
+            let items = [];
+            if (fs.existsSync(shopFile)) {
+              items = JSON.parse(fs.readFileSync(shopFile, 'utf8'));
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ success: true, items }));
+          } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ success: false, error: e.message }));
+          }
+          return;
+        }
+
+        // Admin: Save Shop Items
+        if (req.method === 'POST' && reqPath === '/api/admin/shop/save') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const shopFile = path.join(__dirname, '../shop/items.json');
+              if (Array.isArray(data.items)) {
+                fs.writeFileSync(shopFile, JSON.stringify(data.items, null, 2), 'utf8');
+                this.addLog('admin', `Admin updated shop items (${data.items.length} items)`);
+              }
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
         if (reqPath === '/' || reqPath === '') reqPath = '/index.html';
+        if (reqPath === '/admin' || reqPath === '/admin/') reqPath = '/admin.html';
         const filePath = path.join(__dirname, '../../', reqPath);
 
         if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
@@ -578,7 +1051,11 @@ class Server {
             '.swf': 'application/x-shockwave-flash',
             '.js': 'text/javascript',
             '.css': 'text/css',
-            '.json': 'application/json'
+            '.json': 'application/json',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.svg': 'image/svg+xml'
           };
           const fileSize = fs.statSync(filePath).size;
           console.log(`[Web] GET ${reqPath} (${fileSize} bytes)`);
@@ -862,7 +1339,7 @@ class Server {
 
       case 'm': {
         if (!player || !room) return;
-        // Packet: m, x, y, speedX, speedY, modifierX, modifierY, horizontal, vertical, spacedown, spacejustdown
+        // Packet from Me.as: m, x (0), y (1), speedX (2), speedY (3), modifierX (4), modifierY (5), horizontal (6), vertical (7), gravityMultiplier (8), spacedown (9), spacejustdown (10), tickID (11)
         player.x = msg.getFloat(0);
         player.y = msg.getFloat(1);
         player.speedX = msg.getFloat(2);
@@ -871,10 +1348,17 @@ class Server {
         player.modifierY = msg.getFloat(5);
         player.horizontal = msg.getFloat(6);
         player.vertical = msg.getFloat(7);
-        player.spacedown = msg.getBoolean(8);
-        player.spacejustdown = msg.getBoolean(9);
+        player.gravityMultiplier = msg.getFloat(8);
+        player.spacedown = Boolean(msg.getBoolean(9));
+        player.spacejustdown = Boolean(msg.getBoolean(10));
 
-        // Broadcast 'm' to all other players in room
+        // Convert unsigned int 4294967295 to signed -1
+        if (player.modifierX > 0x7FFFFFFF) player.modifierX = (player.modifierX | 0);
+        if (player.modifierY > 0x7FFFFFFF) player.modifierY = (player.modifierY | 0);
+        if (player.horizontal > 0x7FFFFFFF) player.horizontal = (player.horizontal | 0);
+        if (player.vertical > 0x7FFFFFFF) player.vertical = (player.vertical | 0);
+
+        // Broadcast 'm' to all other players in room (matching PlayState.as 'm' handler)
         const broadcastM = new PlayerIOMessage('m', [
           player.id,
           player.x, player.y,

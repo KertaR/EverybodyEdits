@@ -221,11 +221,29 @@
     "npcbruce",
     "npcstarfish",
     "npcdt",
-    "npcskeleton"
+    "npcskeleton",
+    "brickbrick",
+    "brickmetal",
+    "brickgrass",
+    "brickgeneric",
+    "brickgravity",
+    "brickkeys",
+    "brickgates",
+    "brickdoors",
+    "brickcoins",
+    "bricktools",
+    "brickcrown",
+    "brickhazards",
+    "bricksign",
+    "bricklabel",
+    "brickbgbrick",
+    "brickchristmas2011",
+    "brickspecial"
   ],
   "smileyGoldBorder": false,
   "registeredAt": "2026-08-05T07:32:30.917Z",
-  "lastLogin": "2026-08-05T07:32:30.919Z",
+  "lastLogin": "2026-08-17T11:58:38.110Z",
   "maxEnergy": 200,
-  "itemEnergyProgress": {}
+  "itemEnergyProgress": {},
+  "isBanned": false
 }

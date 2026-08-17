@@ -1,0 +1,7 @@
+node_modules/
+src_decompiled_clean/
+.system_generated/
+*.log
+*.tmp
+Images/*
+!Images/news.png

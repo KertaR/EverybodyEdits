@@ -2240,7 +2240,7 @@ package
          {
             return true;
          }
-         if(param1.payvaultid == "" || this.client.payVault.has(param1.payvaultid) || param1.payvaultid == "pro" && Global.player_is_beta_member || param1.payvaultid == "goldmember" && Boolean(Global.playerObject && Global.playerObject.goldmember))
+         if(param1.payvaultid == "" || this.client.payVault.has(param1.payvaultid) || (param1.payvaultid.indexOf("brickeffect") == 0 && this.client.payVault.has("brickeffect")) || param1.payvaultid == "pro" && Global.player_is_beta_member || param1.payvaultid == "goldmember" && Boolean(Global.playerObject && Global.playerObject.goldmember))
          {
             if((param1.id == 77 || param1.id == 83 || param1.id == 1520) && !Global.hasOwner)
             {

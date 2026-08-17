@@ -1,12 +1,15 @@
 package playerio
 {
    import flash.display.Stage;
+   import flash.events.Event;
+   import flash.events.IOErrorEvent;
    import flash.net.LocalConnection;
    import flash.net.URLRequest;
    import flash.net.URLLoader;
    import flash.net.URLVariables;
    import flash.net.navigateToURL;
    import playerio.generated.PlayerIOError;
+   import playerio.generated.PlayerIORegistrationError;
    import playerio.generated.QuickConnect;
    import playerio.generated.messages.KeyValuePair;
    import playerio.generated.messages.PlayerInsightState;
@@ -60,12 +63,16 @@ package playerio
          var email:String = param5 || param3 || "Guest";
 
          var cbSuccess:Function = null;
+         var cbError:Function = null;
          if(param9 is Function) {
             cbSuccess = param9 as Function;
+            cbError = param10 as Function;
          } else if(param10 is Function) {
             cbSuccess = param10 as Function;
+            cbError = param11 as Function;
          } else if(param11 is Function) {
             cbSuccess = param11 as Function;
+            cbError = param12 as Function;
          }
 
          var uname:String = email;
@@ -75,24 +82,59 @@ package playerio
          }
          if(uname == "") uname = "Guest";
 
+         var reqPass:String = param4 ? String(param4) : "";
          try
          {
             var req:URLRequest = new URLRequest("http://localhost:8080/api/register");
             req.method = "POST";
             req.contentType = "application/json";
-            req.data = '{"username":"' + uname + '","password":"' + (param4 || "admin") + '","email":"' + (email || "") + '"}';
+            req.data = '{"username":"' + uname + '","password":"' + reqPass + '","email":"' + (email || "") + '"}';
             var loader:flash.net.URLLoader = new flash.net.URLLoader();
+            loader.addEventListener(flash.events.Event.COMPLETE, function(e:flash.events.Event):void {
+               try
+               {
+                  var res:Object = JSON.parse(loader.data);
+                  if(res && res.success)
+                  {
+                     var clientUserId:String = "simple" + uname;
+                     var dummyClient:Client = new Client(stage, null, gameId, "", "", clientUserId, false, null);
+                     dummyClient.multiplayer.developmentServer = "127.0.0.1:8184";
+                     if(cbSuccess != null)
+                     {
+                        cbSuccess(dummyClient);
+                     }
+                  }
+                  else
+                  {
+                     var errMsg:String = (res && res.error) ? String(res.error) : "Registration failed";
+                     if(cbError != null)
+                     {
+                        cbError(new PlayerIORegistrationError(errMsg, 1, errMsg, null, null, null));
+                     }
+                  }
+               }
+               catch(err:Error)
+               {
+                  if(cbError != null)
+                  {
+                     cbError(new PlayerIORegistrationError("Connection error", 1, "Connection error", null, null, null));
+                  }
+               }
+            });
+            loader.addEventListener(flash.events.IOErrorEvent.IO_ERROR, function(e:flash.events.IOErrorEvent):void {
+               if(cbError != null)
+               {
+                  cbError(new PlayerIORegistrationError("Network error", 1, "Network error", null, null, null));
+               }
+            });
             loader.load(req);
          }
-         catch(e:Error) {}
-
-         var clientUserId:String = "simple" + uname;
-         var dummyClient:Client = new Client(stage, null, gameId, "", "", clientUserId, false, null);
-         dummyClient.multiplayer.developmentServer = "127.0.0.1:8184";
-
-         if(cbSuccess != null)
+         catch(e:Error)
          {
-            cbSuccess(dummyClient);
+            if(cbError != null)
+            {
+               cbError(new PlayerIORegistrationError("Registration error", 1, "Registration error", null, null, null));
+            }
          }
       }
       

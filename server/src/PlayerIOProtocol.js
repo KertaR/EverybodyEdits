@@ -105,13 +105,17 @@ class PlayerIOProtocol {
 
     if (typeof val === 'number') {
       if (Number.isInteger(val)) {
+        if (val > 0x7FFFFFFF && val <= 0xFFFFFFFF) {
+          val = (val | 0);
+        }
+
         if (val >= 0 && val < 64) {
           return Buffer.from([ShortUnsignedIntPattern | val]);
         }
 
         if (val >= 0) {
           const rawBuf = Buffer.alloc(4);
-          rawBuf.writeInt32BE(val, 0);
+          rawBuf.writeUInt32BE(val, 0);
           const trimmed = this.trimBuffer(rawBuf);
           const header = Buffer.from([IntPattern | (trimmed.length - 1)]);
           return Buffer.concat([header, trimmed]);

@@ -1,7 +1,7 @@
 {
-  "username": "Player",
-  "password": "user123",
-  "email": "player@local.com",
+  "username": "player",
+  "password": "asd",
+  "email": "",
   "role": "user",
   "isAdmin": false,
   "isStaff": false,
@@ -13,20 +13,12 @@
   "aura": 0,
   "auraColor": 0,
   "badge": "",
-  "gems": 480,
-  "energy": 0,
-  "payVault": [
-    "smileyscarecrow",
-    "smileykungfumaster",
-    "smiley3dglasses",
-    "smileycow"
-  ],
-  "smileyGoldBorder": false,
-  "registeredAt": "2026-08-05T18:53:00.000Z",
-  "lastLogin": "2026-08-05T18:53:00.000Z",
+  "gems": 500,
+  "energy": 100,
   "maxEnergy": 200,
-  "itemEnergyProgress": {
-    "smileycow": 250,
-    "smileygraduate": 70
-  }
+  "payVault": [],
+  "smileyGoldBorder": false,
+  "registeredAt": "2026-08-14T10:35:10.113Z",
+  "lastLogin": "2026-08-17T11:58:03.513Z",
+  "itemEnergyProgress": {}
 }
