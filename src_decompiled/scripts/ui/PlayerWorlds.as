@@ -48,27 +48,13 @@ package ui
       
       public static function addSavedWorlds(param1:Array, param2:Client) : void
       {
-         var _loc3_:RoomInfo = null;
+         var _loc3_:Object = null;
          if(Global.playerObject.room0 != null)
          {
             _loc3_ = findWorld(param1,Global.playerObject.room0);
             if(_loc3_ != null)
             {
                _loc3_.data.myworld = true;
-            }
-            else
-            {
-               param1.push({
-                  "id":"savedworld",
-                  "data":{
-                     "name":"Beta Saved World",
-                     "owned":true,
-                     "needskey":true,
-                     "myworld":true,
-                     "beta":false,
-                     "size":"200x200 - Beta"
-                  }
-               });
             }
          }
          if(Global.playerObject.betaonlyroom != null)
@@ -78,75 +64,30 @@ package ui
             {
                _loc3_.data.myworld = true;
             }
-            else
+         }
+         if(Global.playerObject.homeworld != null)
+         {
+            _loc3_ = findWorld(param1,Global.playerObject.homeworld);
+            if(_loc3_ != null)
             {
-               param1.push({
-                  "id":"savedbetaworld",
-                  "data":{
-                     "name":"Beta Only Saved World",
-                     "beta":true,
-                     "owned":true,
-                     "needskey":true,
-                     "myworld":true,
-                     "plays":600,
-                     "Favorites":0,
-                     "Likes":0,
-                     "size":"200x200 - Beta Only"
-                  }
-               });
+               _loc3_.data.myworld = true;
             }
          }
-          if(Global.playerObject.homeworld != null)
-          {
-             _loc3_ = findWorld(param1,Global.playerObject.homeworld);
-             if(_loc3_ != null)
-             {
-                _loc3_.data.myworld = true;
-             }
-             else
-             {
-                param1.push({
-                   "id":Global.playerObject.homeworld,
-                   "data":{
-                      "name":Global.playerObject.getRoomName(Global.playerObject.homeworld) || "Home World",
-                      "beta":false,
-                      "owned":true,
-                      "needskey":true,
-                      "myworld":true,
-                      "size":"200x200 - Home World"
-                   }
-                });
-             }
-          }
-          if(Global.playerObject.rooms != null)
-          {
-             for(var rKey:String in Global.playerObject.rooms)
-             {
-                var rId:String = Global.playerObject.rooms[rKey];
-                if(rId != null && rId != "" && rId != Global.playerObject.homeworld)
-                {
-                   _loc3_ = findWorld(param1, rId);
-                   if(_loc3_ != null)
-                   {
-                      _loc3_.data.myworld = true;
-                   }
-                   else
-                   {
-                      param1.push({
-                         "id": rId,
-                         "data": {
-                            "name": Global.playerObject.getRoomName(rId) || ("World (" + rId + ")"),
-                            "beta": false,
-                            "owned": true,
-                            "needskey": true,
-                            "myworld": true,
-                            "size": "200x200"
-                         }
-                      });
-                   }
-                }
-             }
-          }
+         if(Global.playerObject.rooms != null)
+         {
+            for(var rKey:String in Global.playerObject.rooms)
+            {
+               var rId:String = Global.playerObject.rooms[rKey];
+               if(rId != null && rId != "")
+               {
+                  _loc3_ = findWorld(param1, rId);
+                  if(_loc3_ != null)
+                  {
+                     _loc3_.data.myworld = true;
+                  }
+               }
+            }
+         }
           var getCount:Function = function(key:String):int
           {
              try

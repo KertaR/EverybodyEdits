@@ -175,16 +175,21 @@ package states
             history = [];
             if(Global.cookie.data.history != null)
             {
-               history = Global.cookie.data.history;
+               var oldHist:Array = Global.cookie.data.history;
+               for(var ohi:int = 0; ohi < oldHist.length; ohi++)
+               {
+                  if(oldHist[ohi] != null && oldHist[ohi].id != Global.roomid)
+                  {
+                     history.push(oldHist[ohi]);
+                  }
+               }
             }
             info = {
                "id":Global.roomid,
                "name":Global.currentLevelname,
                "time":new Date()
             };
-            history.reverse();
-            history.push(info);
-            history.reverse();
+            history.unshift(info);
             if(history.length > Global.base.settings.historyLimit)
             {
                history = history.slice(0,Global.base.settings.historyLimit);
@@ -659,6 +664,113 @@ package states
                if(Global.base.ui2instance)
                {
                   Global.base.ui2instance.configureInterface();
+               }
+            }
+         });
+         this.connection.addMessageHandler("freeze",function(param1:Message, param2:int, param3:Boolean):void
+         {
+            var p:Player = (param2 == myid ? player : players[param2] as Player);
+            if(p)
+            {
+               p.isFrozen = param3;
+               if(param3)
+               {
+                  p.speedX = 0;
+                  p.speedY = 0;
+               }
+            }
+         });
+         this.connection.addMessageHandler("dailyReward",function(param1:Message, streak:int, gems:int, energy:int, xp:int, claimed:Boolean):void
+         {
+            if(!claimed && streak > 0)
+            {
+               var modal:flash.display.Sprite = new flash.display.Sprite();
+               var bgOverlay:flash.display.Sprite = new flash.display.Sprite();
+               bgOverlay.graphics.beginFill(0x000000, 0.7);
+               bgOverlay.graphics.drawRect(-1000, -1000, 3000, 3000);
+               bgOverlay.graphics.endFill();
+               modal.addChild(bgOverlay);
+               
+               var pw:Number = 420;
+               var ph:Number = 240;
+               var panel:flash.display.Sprite = new flash.display.Sprite();
+               panel.graphics.lineStyle(2, 0x22c55e, 1);
+               panel.graphics.beginFill(0x1e293b, 0.98);
+               panel.graphics.drawRoundRect(0, 0, pw, ph, 14, 14);
+               panel.graphics.endFill();
+               
+               var titleTf:flash.text.TextField = new flash.text.TextField();
+               titleTf.text = "Daily Login Bonus";
+               titleTf.width = pw;
+               titleTf.height = 30;
+               titleTf.selectable = false;
+               var tFmt:flash.text.TextFormat = new flash.text.TextFormat("Arial", 16, 0xffffff, true);
+               tFmt.align = flash.text.TextFormatAlign.CENTER;
+               titleTf.defaultTextFormat = tFmt;
+               titleTf.setTextFormat(tFmt);
+               titleTf.y = 12;
+               panel.addChild(titleTf);
+               
+               var streakTf:flash.text.TextField = new flash.text.TextField();
+               streakTf.text = "Login Streak: Day " + streak + " Reward!";
+               streakTf.width = pw;
+               streakTf.height = 24;
+               streakTf.selectable = false;
+               var sFmt:flash.text.TextFormat = new flash.text.TextFormat("Arial", 13, 0xfacc15, true);
+               sFmt.align = flash.text.TextFormatAlign.CENTER;
+               streakTf.defaultTextFormat = sFmt;
+               streakTf.setTextFormat(sFmt);
+               streakTf.y = 48;
+               panel.addChild(streakTf);
+               
+               var rewTf:flash.text.TextField = new flash.text.TextField();
+               rewTf.text = "+ " + gems + " Gems\n+ " + energy + " Energy\n+ " + xp + " XP";
+               rewTf.x = 40;
+               rewTf.y = 80;
+               rewTf.width = pw - 80;
+               rewTf.height = 70;
+               rewTf.selectable = false;
+               var rFmt:flash.text.TextFormat = new flash.text.TextFormat("Arial", 13, 0x38bdf8, true);
+               rFmt.align = flash.text.TextFormatAlign.CENTER;
+               rewTf.defaultTextFormat = rFmt;
+               rewTf.setTextFormat(rFmt);
+               panel.addChild(rewTf);
+               
+               var claimBtn:flash.display.Sprite = new flash.display.Sprite();
+               claimBtn.buttonMode = true;
+               claimBtn.mouseChildren = false;
+               claimBtn.graphics.lineStyle(1, 0x22c55e);
+               claimBtn.graphics.beginFill(0x16a34a);
+               claimBtn.graphics.drawRoundRect(0, 0, 130, 32, 6, 6);
+               claimBtn.graphics.endFill();
+               
+               var cTf:flash.text.TextField = new flash.text.TextField();
+               cTf.text = "Claim Reward";
+               cTf.width = 130;
+               cTf.height = 32;
+               cTf.selectable = false;
+               var cFmt:flash.text.TextFormat = new flash.text.TextFormat("Arial", 13, 0xffffff, true);
+               cFmt.align = flash.text.TextFormatAlign.CENTER;
+               cTf.defaultTextFormat = cFmt;
+               cTf.setTextFormat(cFmt);
+               cTf.y = 6;
+               claimBtn.addChild(cTf);
+               
+               claimBtn.x = (pw - 130) / 2;
+               claimBtn.y = ph - 44;
+               claimBtn.addEventListener(flash.events.MouseEvent.CLICK, function(evt:flash.events.MouseEvent):void
+               {
+                  if (modal.parent != null) modal.parent.removeChild(modal);
+               });
+               panel.addChild(claimBtn);
+               
+               panel.x = (Config.width - pw) / 2;
+               panel.y = (Config.height - ph) / 2;
+               modal.addChild(panel);
+               
+               if (Global.base != null && Global.base.overlayContainer != null)
+               {
+                  Global.base.overlayContainer.addChild(modal);
                }
             }
          });

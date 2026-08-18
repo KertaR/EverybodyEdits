@@ -1,6 +1,9 @@
 node_modules/
 src_decompiled_clean/
 .system_generated/
+temp_src/
+scratch/
+server/worlds/backups/
 *.log
 *.tmp
 Images/*

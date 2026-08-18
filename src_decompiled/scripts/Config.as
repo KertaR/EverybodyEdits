@@ -7,9 +7,9 @@ package
       
       public static const playerio_game_id:String = "everybody-edits-su9rn58o40itdbnw69plyw";
       
-      public static const client_type_version:String = "263";
+      public static const client_type_version:String = "264";
       
-      public static const server_type_version:int = 263;
+      public static const server_type_version:int = 264;
       
       public static const server_type_normalroom:String = "Everybodyedits" + server_type_version;
       

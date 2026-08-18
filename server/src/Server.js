@@ -13,6 +13,7 @@ const Player = require('./Player');
 const UserManager = require('./UserManager');
 const CrewManager = require('./CrewManager');
 const AchievementManager = require('./AchievementManager');
+const QuestManager = require('./QuestManager');
 
 class Server {
   constructor(config = {}) {
@@ -22,6 +23,7 @@ class Server {
     this.userManager = new UserManager(path.join(__dirname, '../'));
     this.crewManager = new CrewManager(path.join(__dirname, '../'));
     this.achievementManager = new AchievementManager(this.userManager);
+    this.questManager = new QuestManager(this.userManager);
 
     // Rooms map: roomId -> { world: World, players: Map<id, Player>, nextPlayerId: number }
     this.rooms = new Map();
@@ -534,8 +536,13 @@ class Server {
           } catch (e) {}
 
           if (roomids.length === 0) {
+            let defaultTitle = 'Home';
+            try {
+              const defData = JSON.parse(fs.readFileSync(path.join(this.worldsDir, 'PW_default.json'), 'utf8'));
+              if (defData && defData.title) defaultTitle = defData.title;
+            } catch(e) {}
             roomids.push('PW_default');
-            roomnames.push('Home World');
+            roomnames.push(defaultTitle);
             roomplays.push('1');
           }
 
@@ -1280,6 +1287,184 @@ class Server {
           return;
         }
 
+        // Admin: List World Backups
+        if (req.method === 'GET' && reqPath === '/api/admin/backups') {
+          try {
+            const parsedUrl = url.parse(req.url, true);
+            const worldId = parsedUrl.query.worldId || null;
+            const backups = World.listBackups(this.worldsDir, worldId);
+            res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ success: true, backups }));
+          } catch (e) {
+            res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ success: false, error: e.message }));
+          }
+          return;
+        }
+
+        // Admin: Create World Backup
+        if (req.method === 'POST' && reqPath === '/api/admin/world/backup') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const worldId = String(data.worldId || 'PW_default').trim();
+              const room = this.getOrCreateRoom(worldId);
+              const resBackup = room.world.createBackup(this.worldsDir, data.name || '');
+              this.addLog('admin', `Created backup for world ${worldId} (${resBackup.filename})`);
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify(resBackup));
+            } catch (e) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
+        // Admin: Restore World Backup
+        if (req.method === 'POST' && reqPath === '/api/admin/world/restore') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const worldId = String(data.worldId || 'PW_default').trim();
+              const backupFilename = String(data.filename || '').trim();
+              if (!backupFilename) {
+                res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Backup filename required' }));
+                return;
+              }
+              const room = this.getOrCreateRoom(worldId);
+              const resRestore = room.world.restoreFromBackup(this.worldsDir, backupFilename);
+              if (resRestore.success) {
+                // Broadcast world reset to all players in the room
+                const clearMsg = new PlayerIOMessage('clear');
+                this.broadcastToRoom(room, clearMsg);
+                for (let y = 0; y < room.world.height; y++) {
+                  for (let x = 0; x < room.world.width; x++) {
+                    const fg = room.world.getBlock(0, x, y);
+                    if (fg > 0) {
+                      this.broadcastToRoom(room, new PlayerIOMessage('b', [0, x, y, fg, 0]));
+                    }
+                    const bg = room.world.getBlock(1, x, y);
+                    if (bg > 0) {
+                      this.broadcastToRoom(room, new PlayerIOMessage('b', [1, x, y, bg, 0]));
+                    }
+                  }
+                }
+                this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `World restored from backup: ${backupFilename}`]));
+                this.addLog('admin', `Admin restored world ${worldId} from backup ${backupFilename}`);
+              }
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify(resRestore));
+            } catch (e) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
+        // Admin: Live World Painter Set Block
+        if (req.method === 'POST' && reqPath === '/api/admin/world/setblock') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const worldId = String(data.worldId || 'PW_default').trim();
+              const layer = Number(data.layer || 0);
+              const x = Number(data.x);
+              const y = Number(data.y);
+              const blockId = Number(data.blockId || 0);
+              const room = this.getOrCreateRoom(worldId);
+
+              room.world.setBlock(layer, x, y, blockId);
+              room.world.saveToFile(this.worldsDir);
+
+              const bMsg = new PlayerIOMessage('b', [layer, x, y, blockId, 0]);
+              this.broadcastToRoom(room, bMsg);
+
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
+        // API Endpoint: Get Daily Quests & Streak for User
+        if (req.method === 'GET' && (reqPath === '/api/quests' || reqPath.startsWith('/api/quests/'))) {
+          const parsedUrl = url.parse(req.url, true);
+          let username = parsedUrl.query.username || (reqPath.startsWith('/api/quests/') ? decodeURIComponent(reqPath.substring('/api/quests/'.length)) : 'Admin');
+          const user = this.userManager.getUser(username);
+          if (!user) {
+            res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+            res.end(JSON.stringify({ success: false, error: 'User not found' }));
+            return;
+          }
+          const questsData = this.questManager.getUserQuests(user);
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ success: true, quests: questsData }));
+          return;
+        }
+
+        // Admin: Save Crew
+        if (req.method === 'POST' && reqPath === '/api/admin/crew/save') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const crewId = String(data.id || '').toLowerCase().trim();
+              if (!crewId) {
+                res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+                res.end(JSON.stringify({ success: false, error: 'Crew ID required' }));
+                return;
+              }
+              const crewsDir = path.join(__dirname, '../crews');
+              if (!fs.existsSync(crewsDir)) fs.mkdirSync(crewsDir, { recursive: true });
+              const crewFile = path.join(crewsDir, `${crewId}.json`);
+              fs.writeFileSync(crewFile, JSON.stringify(data, null, 2), 'utf8');
+              this.addLog('admin', `Admin saved crew: ${data.name || crewId}`);
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
+        // Admin: Delete Crew
+        if (req.method === 'POST' && reqPath === '/api/admin/crew/delete') {
+          let body = '';
+          req.on('data', chunk => body += chunk.toString());
+          req.on('end', () => {
+            try {
+              const data = JSON.parse(body || '{}');
+              const crewId = String(data.id || '').toLowerCase().trim();
+              const crewFile = path.join(__dirname, `../crews/${crewId}.json`);
+              if (fs.existsSync(crewFile)) {
+                fs.unlinkSync(crewFile);
+                this.addLog('admin', `Admin deleted crew: ${crewId}`);
+              }
+              res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: true }));
+            } catch (e) {
+              res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+              res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+          });
+          return;
+        }
+
         if (reqPath === '/' || reqPath === '') reqPath = '/index.html';
         if (reqPath === '/admin' || reqPath === '/admin/') reqPath = '/admin.html';
         const filePath = path.join(__dirname, '../../', reqPath);
@@ -1486,6 +1671,7 @@ class Server {
         player.auraColor = userData.auraColor !== undefined ? userData.auraColor : 0;
         player.badge = userData.badge || '';
         player.smileyGoldBorder = userData.smileyGoldBorder !== undefined ? userData.smileyGoldBorder : true;
+        player.country = (userData && userData.country) ? userData.country.toUpperCase() : 'HU';
         player.joinTimestamp = Date.now();
 
         const isWorldOwner = Boolean(room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
@@ -1514,8 +1700,10 @@ class Server {
         if (!player || !room) return;
         console.log(`[Init] Client requested init for player ${player.username} (ID: ${player.id}) in room ${room.id}`);
 
-        player.x = (room.world.spawnX !== undefined ? room.world.spawnX : 16) * 16;
-        player.y = (room.world.spawnY !== undefined ? room.world.spawnY : 16) * 16;
+        const spawnPoint = room.world.findSpawnPoint();
+        player.x = spawnPoint.x * 16;
+        player.y = spawnPoint.y * 16;
+        console.log(`[Spawn] Spawning player ${player.username} at (${spawnPoint.x}, ${spawnPoint.y}) -> (${player.x}, ${player.y} px)`);
 
         // Construct & Send 'init' message matching EverybodyEdits.as & PlayState.as expectations
         const initMsg = new PlayerIOMessage('init');
@@ -1548,12 +1736,12 @@ class Server {
         initMsg.add(0);                          // param28: Effect Limit 1
         initMsg.add(0);                          // param29: Effect Limit 2
         initMsg.add(false);                      // param30: Is Campaign Room
-        initMsg.add(room.world.crewId);          // param31: Crew ID
-        initMsg.add(room.world.crewName);        // param32: Crew Name
+        initMsg.add(String(room.world.crewId || ''));          // param31: Crew ID
+        initMsg.add(String(room.world.crewName || ''));        // param32: Crew Name
         initMsg.add(true);                       // param33: Can Change World Options
         initMsg.add(0);                          // param34: Status
         initMsg.add(player.badge);               // param35: Badge
-        initMsg.add(false);                      // param36: Crew Member
+        initMsg.add(Boolean(player.crew && room.world.crewId && player.crew.toLowerCase() === room.world.crewId.toLowerCase())); // param36: Crew Member
         initMsg.add(false);                      // param37: Minimap Enabled
         initMsg.add(false);                      // param38: Lobby Preview
         initMsg.add(Buffer.alloc(0));            // param39: Active Orange Switches (empty ByteArray)
@@ -1566,30 +1754,59 @@ class Server {
 
         player.send(initMsg);
 
-        // Track world visit stat for achievements
+        // Send roomLocked state
+        player.send(new PlayerIOMessage('roomLocked', [Boolean(room.world.isLocked)]));
+
+        // Track world visit stat for achievements and process daily login bonus
         const uInit = this.userManager.getUser(player.username);
         if (uInit) {
           this.achievementManager.trackStat(uInit, 'worldsVisited', room.id, (msg) => {
             this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
           });
+          const streakData = this.questManager.processDailyLogin(uInit);
+          if (streakData && streakData.streakAwarded) {
+            const dailyMsg = new PlayerIOMessage('dailyReward');
+            dailyMsg.add(streakData.streak);
+            dailyMsg.add(streakData.rewardGems);
+            dailyMsg.add(streakData.rewardEnergy);
+            dailyMsg.add(streakData.rewardXP);
+            dailyMsg.add(false);
+            player.send(dailyMsg);
+          }
         }
 
-        // Send 'add' message for all existing players to the new player
+        // Send 'add', 'userCountry', and 'freeze' message for all existing players to the new player
         for (const [otherId, otherPlayer] of room.players) {
           if (otherId !== player.id) {
             const addMsg = new PlayerIOMessage('add', otherPlayer.getAddMessageData());
             player.send(addMsg);
+            player.send(new PlayerIOMessage('userCountry', [otherId, otherPlayer.country || 'HU']));
+            if (otherPlayer.isFrozen) {
+              player.send(new PlayerIOMessage('freeze', [otherId, true]));
+            }
           }
         }
 
-        // Broadcast 'add' message of new player to all existing players
+        player.send(new PlayerIOMessage('userCountry', [player.id, player.country || 'HU']));
+        if (player.isFrozen) {
+          player.send(new PlayerIOMessage('freeze', [player.id, true]));
+        }
+
+        // Broadcast 'add' and 'userCountry' message of new player to all existing players
         const newAddMsg = new PlayerIOMessage('add', player.getAddMessageData());
         this.broadcastToRoom(room, newAddMsg, player.id);
+        this.broadcastToRoom(room, new PlayerIOMessage('userCountry', [player.id, player.country || 'HU']), player.id);
         break;
       }
 
       case 'm': {
         if (!player || !room) return;
+        if (player.isFrozen) {
+          player.speedX = 0;
+          player.speedY = 0;
+          player.send(new PlayerIOMessage('tele', [player.id, player.x, player.y]));
+          return;
+        }
         // Packet from Me.as: m, x (0), y (1), speedX (2), speedY (3), modifierX (4), modifierY (5), horizontal (6), vertical (7), gravityMultiplier (8), spacedown (9), spacejustdown (10), tickID (11)
         player.x = msg.getFloat(0);
         player.y = msg.getFloat(1);
@@ -1616,6 +1833,9 @@ class Server {
             this.achievementManager.trackStat(uJump, 'jumps', 1, (msg) => {
               this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
             });
+            this.questManager.trackDailyStat(uJump, 'dailyJumps', 1, (msg) => {
+              this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
+            });
           }
         }
 
@@ -1634,6 +1854,14 @@ class Server {
 
       case 'b': {
         if (!player || !room) return;
+        if (room.world.isLocked && !player.isOwner && !player.isAdmin) {
+          player.send(new PlayerIOMessage('write', ['* SYSTEM', 'This world is currently locked.']));
+          return;
+        }
+        if (room.world.allowGuests === false && player.username.toLowerCase().startsWith('guest')) {
+          player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Guest building is disabled in this room.']));
+          return;
+        }
         if (!player.canEdit) {
           console.log(`[Block Place Blocked] Player ${player.username} does not have edit rights.`);
           return;
@@ -1647,10 +1875,27 @@ class Server {
         const extraArgs = msg.values.slice(4);
         room.world.setBlock(layer, x, y, blockId, extraArgs.length > 0 ? extraArgs : null);
 
+        // Update world spawn point if block 255 (Spawn Point) is placed or removed
+        if (layer === 0) {
+          if (blockId === 255) {
+            room.world.spawnX = x;
+            room.world.spawnY = y;
+            console.log(`[Spawn] World ${room.id} spawn point updated to (${x}, ${y}) by ${player.username}`);
+          } else if (room.world.spawnX === x && room.world.spawnY === y && blockId === 0) {
+            const sp = room.world.findSpawnPoint();
+            room.world.spawnX = sp.x;
+            room.world.spawnY = sp.y;
+            console.log(`[Spawn] Spawn removed, reset to (${room.world.spawnX}, ${room.world.spawnY})`);
+          }
+        }
+
         // Track blocksPlaced stat
         const uBlock = this.userManager.getUser(player.username);
         if (uBlock) {
           this.achievementManager.trackStat(uBlock, 'blocksPlaced', 1, (msg) => {
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
+          });
+          this.questManager.trackDailyStat(uBlock, 'dailyBlocksPlaced', 1, (msg) => {
             this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
           });
         }
@@ -1732,6 +1977,35 @@ class Server {
         break;
       }
 
+      case 'name': {
+        if (!player || !room) return;
+        const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+        if (!isOwnerOrStaff) {
+          player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only the world owner or staff can change the world title.']));
+          return;
+        }
+        const newTitle = String(msg.getString(0) || '').trim().substring(0, 50);
+        if (!newTitle) {
+          player.send(new PlayerIOMessage('write', ['* SYSTEM', 'World title cannot be empty.']));
+          return;
+        }
+        room.world.title = newTitle;
+        room.world.saveToFile(this.worldsDir);
+
+        // Broadcast updatemeta to everyone in the room: owner, title, plays, favorites, likes
+        const updateMetaMsg = new PlayerIOMessage('updatemeta', [
+          room.world.owner || 'Admin',
+          room.world.title,
+          room.world.plays || 0,
+          room.world.favorites || 0,
+          room.world.likes || 0
+        ]);
+        this.broadcastToRoom(room, updateMetaMsg);
+        this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `📝 World title changed to: "${newTitle}" by ${player.username}.`]));
+        console.log(`[World Name] Room ${room.id} renamed to "${newTitle}" by ${player.username}`);
+        break;
+      }
+
       case 'key': {
         if (!player || !room) return;
         if (!player.isOwner && !player.isAdmin) {
@@ -1748,6 +2022,10 @@ class Server {
 
       case 'access': {
         if (!player || !room) return;
+        if (room.world.isLocked && !player.isOwner && !player.isAdmin) {
+          player.send(new PlayerIOMessage('write', ['* SYSTEM', 'This world is locked by staff. Access keys cannot be entered.']));
+          return;
+        }
         const key = msg.getString(0) || '';
         if (room.world.editKey && room.world.editKey !== key) {
           player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Invalid edit key.']));
@@ -1757,6 +2035,27 @@ class Server {
         player.send(new PlayerIOMessage('access'));
         this.broadcastToRoom(room, new PlayerIOMessage('editRights', [player.id, true]));
         this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `${player.username} gained edit rights.`]));
+        break;
+      }
+
+      case 'getQuests': {
+        if (!player || !room) return;
+        const uQuests = this.userManager.getUser(player.username);
+        if (!uQuests) return;
+        const qData = this.questManager.getUserQuests(uQuests);
+        const resp = new PlayerIOMessage('questsData');
+        resp.add(qData.streak);
+        resp.add(qData.quests.length);
+        for (const q of qData.quests) {
+          resp.add(q.title);
+          resp.add(q.desc);
+          resp.add(q.current);
+          resp.add(q.target);
+          resp.add(q.completed);
+          resp.add(q.rewardGems);
+          resp.add(q.rewardXP);
+        }
+        player.send(resp);
         break;
       }
 
@@ -2394,15 +2693,342 @@ class Server {
             return;
           }
 
+          if (cmd === 'pm' || cmd === 'tell' || cmd === 'whisper' || cmd === 'msg') {
+            if (args.length < 2) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /pm <username> <message>']));
+              return;
+            }
+            const targetName = args[0].toLowerCase();
+            const pmText = args.slice(1).join(' ');
+            let targetPlayer = null;
+
+            // Search across all online rooms
+            for (const r of this.rooms.values()) {
+              for (const p of r.players.values()) {
+                if (p.username.toLowerCase() === targetName) {
+                  targetPlayer = p;
+                  break;
+                }
+              }
+              if (targetPlayer) break;
+            }
+
+            if (!targetPlayer) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Player '${args[0]}' is not online.`]));
+              return;
+            }
+
+            targetPlayer.lastDmFrom = player.username;
+            player.lastDmTo = targetPlayer.username;
+
+            targetPlayer.send(new PlayerIOMessage('write', [`💬 [PM from ${player.username}]`, pmText]));
+            player.send(new PlayerIOMessage('write', [`💬 [PM to ${targetPlayer.username}]`, pmText]));
+
+            const uSender = this.userManager.getUser(player.username);
+            if (uSender) {
+              this.achievementManager.trackStat(uSender, 'dmsSent', 1, (msg) => {
+                this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
+              });
+            }
+            return;
+          }
+
+          if (cmd === 'r' || cmd === 'reply') {
+            if (!player.lastDmFrom) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Nobody has sent you a PM yet.']));
+              return;
+            }
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Usage: /r <message> (replies to ${player.lastDmFrom})`]));
+              return;
+            }
+            const pmText = args.join(' ');
+            let targetPlayer = null;
+            for (const r of this.rooms.values()) {
+              for (const p of r.players.values()) {
+                if (p.username.toLowerCase() === player.lastDmFrom.toLowerCase()) {
+                  targetPlayer = p;
+                  break;
+                }
+              }
+              if (targetPlayer) break;
+            }
+
+            if (!targetPlayer) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Player '${player.lastDmFrom}' is no longer online.`]));
+              return;
+            }
+
+            targetPlayer.lastDmFrom = player.username;
+            targetPlayer.send(new PlayerIOMessage('write', [`💬 [PM from ${player.username}]`, pmText]));
+            player.send(new PlayerIOMessage('write', [`💬 [PM to ${targetPlayer.username}]`, pmText]));
+            return;
+          }
+
+          if (cmd === 'warp' || cmd === 'goto') {
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /warp <worldId>']));
+              return;
+            }
+            const targetWorldId = args[0];
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `Warping to world '${targetWorldId}'...`]));
+            player.send(new PlayerIOMessage('tele', [player.id, 16 * 16, 16 * 16]));
+            const uWarp = this.userManager.getUser(player.username);
+            if (uWarp) {
+              this.achievementManager.trackStat(uWarp, 'portalsUsed', 1, (msg) => {
+                this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
+              });
+              this.questManager.trackDailyStat(uWarp, 'dailyPortals', 1, (msg) => {
+                this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', msg]));
+              });
+            }
+            return;
+          }
+
+          if (cmd === 'freeze') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to freeze players.']));
+              return;
+            }
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /freeze <username>']));
+              return;
+            }
+            const targetName = args[0].toLowerCase();
+            let target = null;
+            for (const p of room.players.values()) {
+              if (p.username.toLowerCase() === targetName) { target = p; break; }
+            }
+            if (!target) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Player '${args[0]}' not found.`]));
+              return;
+            }
+            target.isFrozen = true;
+            target.speedX = 0;
+            target.speedY = 0;
+            this.broadcastToRoom(room, new PlayerIOMessage('freeze', [target.id, true]));
+            this.broadcastToRoom(room, new PlayerIOMessage('tele', [target.id, target.x, target.y]));
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `❄️ ${target.username} was FROZEN by ${player.username}.`]));
+            return;
+          }
+
+          if (cmd === 'unfreeze') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'You do not have permission to unfreeze players.']));
+              return;
+            }
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /unfreeze <username>']));
+              return;
+            }
+            const targetName = args[0].toLowerCase();
+            let target = null;
+            for (const p of room.players.values()) {
+              if (p.username.toLowerCase() === targetName) { target = p; break; }
+            }
+            if (!target) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Player '${args[0]}' not found.`]));
+              return;
+            }
+            target.isFrozen = false;
+            this.broadcastToRoom(room, new PlayerIOMessage('freeze', [target.id, false]));
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `🔥 ${target.username} was UNFROZEN by ${player.username}.`]));
+            return;
+          }
+
+          if (cmd === 'lock') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only the room owner or staff can lock the world.']));
+              return;
+            }
+            room.world.isLocked = true;
+            for (const p of room.players.values()) {
+              if (!p.isOwner && !p.isAdmin) {
+                p.canEdit = false;
+                p.isGod = false;
+                p.send(new PlayerIOMessage('lostaccess'));
+                this.broadcastToRoom(room, new PlayerIOMessage('editRights', [p.id, false]));
+                this.broadcastToRoom(room, new PlayerIOMessage('god', [p.id, false]));
+              }
+            }
+            this.broadcastToRoom(room, new PlayerIOMessage('roomLocked', [true]));
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `🔒 World was LOCKED by ${player.username}. Only owners/staff can edit.`]));
+            return;
+          }
+
+          if (cmd === 'unlock') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only the room owner or staff can unlock the world.']));
+              return;
+            }
+            room.world.isLocked = false;
+            this.broadcastToRoom(room, new PlayerIOMessage('roomLocked', [false]));
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `🔓 World was UNLOCKED by ${player.username}.`]));
+            return;
+          }
+
+          if (cmd === 'country' || cmd === 'flag') {
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Your country is currently set to: ${player.country || 'HU'}. Use /country <HU/US/GB/DE/FR/IT/RO/PL/UA/ES/NL/SE/NO/FI/JP/CA/BR> to change it.`]));
+              return;
+            }
+            const newCountry = args[0].toUpperCase().substring(0, 2);
+            player.country = newCountry;
+            const u = this.userManager.getUser(player.username);
+            if (u) {
+              u.country = newCountry;
+              this.userManager.saveUser(u.username);
+            }
+            this.broadcastToRoom(room, new PlayerIOMessage('userCountry', [player.id, newCountry]));
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `🚩 ${player.username} changed their country to ${newCountry}.`]));
+            return;
+          }
+
+          if (cmd === 'respawn' || cmd === 'spawn' || cmd === 'home' || cmd === 'kill') {
+            const sp = room.world.findSpawnPoint();
+            player.x = sp.x * 16;
+            player.y = sp.y * 16;
+            player.speedX = 0;
+            player.speedY = 0;
+            player.send(new PlayerIOMessage('tele', [player.id, player.x, player.y]));
+            return;
+          }
+
+          if (cmd === 'name' || cmd === 'title' || cmd === 'rename' || cmd === 'setname') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only the world owner or staff can change the world title.']));
+              return;
+            }
+            if (args.length === 0) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `Current world title: "${room.world.title}". Usage: /title <new title>`]));
+              return;
+            }
+            const newTitle = args.join(' ').trim().substring(0, 50);
+            room.world.title = newTitle;
+            room.world.saveToFile(this.worldsDir);
+
+            const updateMetaMsg = new PlayerIOMessage('updatemeta', [
+              room.world.owner || 'Admin',
+              room.world.title,
+              room.world.plays || 0,
+              room.world.favorites || 0,
+              room.world.likes || 0
+            ]);
+            this.broadcastToRoom(room, updateMetaMsg);
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `📝 World title changed to: "${newTitle}" by ${player.username}.`]));
+            console.log(`[World Name] Room ${room.id} renamed to "${newTitle}" by ${player.username}`);
+            return;
+          }
+
+          if (cmd === 'allowguests') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Permission denied.']));
+              return;
+            }
+            const state = args[0] ? args[0].toLowerCase() === 'on' || args[0].toLowerCase() === 'true' : !room.world.allowGuests;
+            room.world.allowGuests = state;
+            this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `Guest building permissions set to: ${state ? 'ENABLED' : 'DISABLED'}`]));
+            return;
+          }
+
+          if (cmd === 'backup') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only room owner or staff can create world backups.']));
+              return;
+            }
+            const backupName = args.join('_') || 'chat_backup';
+            const res = room.world.createBackup(this.worldsDir, backupName);
+            if (res.success) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `💾 World backup created: ${res.filename}`]));
+            } else {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `❌ Failed to create backup: ${res.error}`]));
+            }
+            return;
+          }
+
+          if (cmd === 'restore') {
+            const isOwnerOrStaff = player.isOwner || player.isAdmin || player.isMod || (room.world.owner && room.world.owner.toLowerCase() === player.username.toLowerCase());
+            if (!isOwnerOrStaff) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Only room owner or staff can restore backups.']));
+              return;
+            }
+            if (args.length === 0) {
+              const backups = World.listBackups(this.worldsDir, room.id);
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `--- AVAILABLE BACKUPS (${backups.length}) ---`]));
+              for (const b of backups.slice(0, 5)) {
+                player.send(new PlayerIOMessage('write', ['* SYSTEM', `📁 ${b.filename} (${new Date(b.created).toLocaleTimeString()})`]));
+              }
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', 'Usage: /restore <filename>']));
+              return;
+            }
+            const filename = args[0];
+            const res = room.world.restoreFromBackup(this.worldsDir, filename);
+            if (res.success) {
+              const clearMsg = new PlayerIOMessage('clear');
+              this.broadcastToRoom(room, clearMsg);
+              for (let y = 0; y < room.world.height; y++) {
+                for (let x = 0; x < room.world.width; x++) {
+                  const fg = room.world.getBlock(0, x, y);
+                  if (fg > 0) this.broadcastToRoom(room, new PlayerIOMessage('b', [0, x, y, fg, 0]));
+                  const bg = room.world.getBlock(1, x, y);
+                  if (bg > 0) this.broadcastToRoom(room, new PlayerIOMessage('b', [1, x, y, bg, 0]));
+                }
+              }
+              this.broadcastToRoom(room, new PlayerIOMessage('write', ['* SYSTEM', `🔄 World was RESTORED from ${filename} by ${player.username}!`]));
+            } else {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `❌ Restore failed: ${res.error}`]));
+            }
+            return;
+          }
+
+          if (cmd === 'daily' || cmd === 'streak') {
+            const user = this.userManager.getUser(player.username);
+            if (!user) return;
+            const streakData = this.questManager.processDailyLogin(user);
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `--- 🎁 DAILY LOGIN BONUS ---`]));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `🔥 Consecutive Days Streak: ${streakData.streak} days`]));
+            if (streakData.streakAwarded) {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `🎉 Claimed Today: +${streakData.rewardGems} 💎 Gems, +${streakData.rewardEnergy} ⚡ Energy, +${streakData.rewardXP} ⭐ XP!`]));
+            } else {
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `✅ You already claimed your daily bonus for today! Come back tomorrow for Day ${streakData.streak + 1}.`]));
+            }
+            return;
+          }
+
+          if (cmd === 'quests' || cmd === 'missions') {
+            const user = this.userManager.getUser(player.username);
+            if (!user) return;
+            const qData = this.questManager.getUserQuests(user);
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', `--- 📜 DAILY QUESTS (Streak: ${qData.streak} 🔥) ---`]));
+            for (const q of qData.quests) {
+              const status = q.completed ? '✅ [TELJESÍTVE]' : `⏳ [${q.progress}%] (${q.current}/${q.target})`;
+              player.send(new PlayerIOMessage('write', ['* SYSTEM', `${q.icon} ${q.title}: ${q.desc} -> ${status} (+${q.rewardGems} 💎, +${q.rewardXP} XP)`]));
+            }
+            return;
+          }
+
           if (cmd === 'help') {
-            player.send(new PlayerIOMessage('write', ['* SYSTEM', '--- WORLDEDIT & BUILDER COMMANDS ---']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '=== EVERYBODY EDITS v264 COMMANDS ===']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '--- 🧱 WORLDEDIT & BUILDER ---']));
             player.send(new PlayerIOMessage('write', ['* SYSTEM', '/fill, /bgfill, /replace, /undo, /clear, /setspawn, /worldtitle, /worlddesc, /export']));
-            player.send(new PlayerIOMessage('write', ['* SYSTEM', '--- STATS & ACHIEVEMENTS ---']));
-            player.send(new PlayerIOMessage('write', ['* SYSTEM', '/stats [user], /level [user], /achievements, /badges']));
-            player.send(new PlayerIOMessage('write', ['* SYSTEM', '--- MODERATION & ADMIN COMMANDS ---']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '--- 💾 BACKUP & SNAPSHOTS ---']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '/backup [name], /restore [filename]']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '--- 💬 MESSAGING & SOCIAL ---']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '/pm <user> <msg>, /r <msg>, /warp <worldId>']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '--- ⭐ STATS, QUESTS & REWARDS ---']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '/daily, /quests, /stats [user], /level [user], /achievements']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '--- 🛡️ MODERATION & SECURITY ---']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '/freeze <user>, /unfreeze <user>, /lock, /unlock, /allowguests <on|off>']));
             player.send(new PlayerIOMessage('write', ['* SYSTEM', '/kick <user>, /ban <user>, /unban <user>, /mute <user>, /unmute <user>']));
             player.send(new PlayerIOMessage('write', ['* SYSTEM', '/givegems <user> <amt>, /giveenergy <user> <amt>, /givexp <user> <amt>, /giveitem <user> <item>']));
-            player.send(new PlayerIOMessage('write', ['* SYSTEM', '/tp <player>, /tphere <player>, /broadcast <message>, /god, /giveedit <user>']));
+            player.send(new PlayerIOMessage('write', ['* SYSTEM', '/tp <player>, /tphere <player>, /broadcast <msg>, /god, /giveedit <user>']));
             return;
           }
         }

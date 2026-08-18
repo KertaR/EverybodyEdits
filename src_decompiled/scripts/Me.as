@@ -34,6 +34,23 @@ package
       
       override protected function getPlayerInput() : void
       {
+         if (this.isFrozen)
+         {
+            leftdown = 0;
+            updown = 0;
+            rightdown = 0;
+            downdown = 0;
+            spacejustdown = false;
+            spacedown = false;
+            horizontal = 0;
+            vertical = 0;
+            speedX = 0;
+            speedY = 0;
+            modifierX = 0;
+            modifierY = 0;
+            Bl.resetJustPressed();
+            return;
+         }
          leftdown = Bl.isKeyDown(37) || KeyBinding.left.isDown(true) ? -1 : 0;
          updown = Bl.isKeyDown(38) || KeyBinding.up.isDown(true) ? -1 : 0;
          rightdown = Bl.isKeyDown(39) || KeyBinding.right.isDown(true) ? 1 : 0;
@@ -187,6 +204,7 @@ package
                      frame = 100;
                      break;
                   case ItemId.CHECKPOINT:
+                  case ItemId.SPAWN:
                      checkpoint_x = param1;
                      checkpoint_y = param2;
                      connection.send("checkpoint",param1,param2);

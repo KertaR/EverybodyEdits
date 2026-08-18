@@ -1501,7 +1501,7 @@ package
             }
             
             Global.log("Logging Console Initialized. Press '0' to show/hide this log overlay.");
-            Global.log("Client version: 263. Server address: 127.0.0.1:8184");
+            Global.log("Client version: 264. Server address: 127.0.0.1:8184");
          }
          catch(eLog:Error)
          {

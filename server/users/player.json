@@ -13,16 +13,52 @@
   "aura": 0,
   "auraColor": 0,
   "badge": "",
-  "gems": 500,
-  "energy": 100,
+  "gems": 520,
+  "energy": 115,
   "maxEnergy": 200,
   "payVault": [],
   "smileyGoldBorder": false,
   "registeredAt": "2026-08-14T10:35:10.113Z",
-  "lastLogin": "2026-08-17T11:58:03.513Z",
+  "lastLogin": "2026-08-18T12:31:00.467Z",
   "itemEnergyProgress": {},
   "friends": [],
   "favorites": [],
   "likedWorlds": [],
-  "crew": ""
+  "crew": "",
+  "xp": 50,
+  "level": 1,
+  "stats": {
+    "blocksPlaced": 0,
+    "blocksCleared": 0,
+    "jumps": 0,
+    "chatMessages": 0,
+    "itemsPurchased": 0,
+    "worldsVisited": [
+      "PW_default"
+    ]
+  },
+  "achievements": [],
+  "quests": {
+    "lastLoginDate": "2026-08-18",
+    "streak": 1,
+    "dailyStats": {},
+    "activeQuests": [
+      {
+        "id": "daily_blocks_50",
+        "completed": false,
+        "claimed": false
+      },
+      {
+        "id": "daily_jumps_100",
+        "completed": false,
+        "claimed": false
+      },
+      {
+        "id": "daily_chat_15",
+        "completed": false,
+        "claimed": false
+      }
+    ],
+    "claimedToday": true
+  }
 }

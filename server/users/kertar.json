@@ -13,7 +13,7 @@
   "aura": 0,
   "auraColor": 0,
   "badge": "",
-  "gems": 1000000225,
+  "gems": 1000000450,
   "energy": 200,
   "payVault": [
     "pro",
@@ -221,7 +221,7 @@
   ],
   "smileyGoldBorder": false,
   "registeredAt": "2026-08-05T07:32:30.917Z",
-  "lastLogin": "2026-08-17T15:06:22.861Z",
+  "lastLogin": "2026-08-18T15:03:04.294Z",
   "maxEnergy": 200,
   "itemEnergyProgress": {},
   "isBanned": false,
@@ -229,17 +229,19 @@
   "favorites": [],
   "likedWorlds": [],
   "crew": "",
-  "xp": 200,
-  "level": 2,
+  "xp": 600,
+  "level": 3,
   "stats": {
-    "blocksPlaced": 717,
+    "blocksPlaced": 1153,
     "blocksCleared": 0,
     "jumps": 0,
-    "chatMessages": 0,
+    "chatMessages": 7,
     "itemsPurchased": 223,
     "worldsVisited": [
-      "PW_default"
-    ]
+      "PW_default",
+      "OWMSYQZCBSBA"
+    ],
+    "dmsSent": 1
   },
   "achievements": [
     {
@@ -251,6 +253,37 @@
       "id": "builder_1",
       "title": "Kezdő Építész",
       "unlockedAt": "2026-08-17T14:57:44.230Z"
+    },
+    {
+      "id": "builder_2",
+      "title": "Mester Építész",
+      "unlockedAt": "2026-08-18T14:22:38.375Z"
     }
-  ]
+  ],
+  "quests": {
+    "lastLoginDate": "2026-08-18",
+    "streak": 1,
+    "dailyStats": {
+      "dailyBlocksPlaced": 436
+    },
+    "activeQuests": [
+      {
+        "id": "daily_blocks_50",
+        "completed": true,
+        "claimed": true
+      },
+      {
+        "id": "daily_jumps_100",
+        "completed": false,
+        "claimed": false
+      },
+      {
+        "id": "daily_chat_15",
+        "completed": false,
+        "claimed": false
+      }
+    ],
+    "claimedToday": true
+  },
+  "country": "HU"
 }

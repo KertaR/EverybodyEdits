@@ -1,7 +1,7 @@
 {
   "name": "everybody-edits-private-server",
-  "version": "1.0.0",
-  "description": "Everybody Edits Private Server & Client Suite",
+  "version": "2.64.0",
+  "description": "Everybody Edits v264 Private Server & Client Suite",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",

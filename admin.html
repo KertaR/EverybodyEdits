@@ -686,7 +686,7 @@
       <div class="brand-icon">EE</div>
       <div>
         <div class="brand-title">Admin Panel</div>
-        <span class="brand-badge">PRO SERVER</span>
+        <span class="brand-badge">v264 PRO</span>
       </div>
     </div>
 
@@ -710,6 +710,14 @@
       <div class="nav-item" onclick="switchTab('livemap')">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>
         <span>Live World Map</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('crews')">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+        <span>Crews & Guilds</span>
+      </div>
+      <div class="nav-item" onclick="switchTab('backups')">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+        <span>World Backups</span>
       </div>
       <div class="nav-item" onclick="switchTab('console')">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -985,7 +993,7 @@
     </section>
 
     <!-- ===================================== -->
-    <!-- TAB 6: LIVE WORLD MAP                 -->
+    <!-- TAB 5: LIVE WORLD MAP & PAINTER       -->
     <!-- ===================================== -->
     <section id="tab-livemap" class="tab-section">
       <div class="card" style="margin-bottom: 20px;">
@@ -1004,6 +1012,26 @@
             </label>
           </div>
         </div>
+
+        <!-- Live World Painter Toolbar -->
+        <div style="display: flex; align-items: center; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-color); flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span style="font-size: 0.85rem; font-weight: 600; color: #fff;">🎨 Live Painter:</span>
+            <select id="painter-block-select" class="form-select" style="width: 170px; padding: 6px 10px; font-size: 0.8rem;">
+              <option value="9">Border (Gray #9)</option>
+              <option value="1">Basic Blue (#1)</option>
+              <option value="2">Basic Red (#2)</option>
+              <option value="3">Basic Green (#3)</option>
+              <option value="100">Coin (#100)</option>
+              <option value="361">Spikes (#361)</option>
+              <option value="200">Red Door (#200)</option>
+              <option value="242">Portal (#242)</option>
+              <option value="119">Water (#119)</option>
+              <option value="0">Eraser (Air #0)</option>
+            </select>
+          </div>
+          <span id="painter-coords-info" style="font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--accent);">Hover over map to inspect coordinates</span>
+        </div>
       </div>
 
       <div style="display: grid; grid-template-columns: 1fr 340px; gap: 24px;">
@@ -1011,9 +1039,9 @@
         <div class="card" style="display: flex; flex-direction: column; align-items: center; background: #000; overflow: auto; max-height: 650px; padding: 12px;">
           <div style="display: flex; justify-content: space-between; width: 100%; margin-bottom: 8px; font-size: 0.8rem; color: var(--text-muted);">
             <span id="livemap-world-info">World: PW_default (200x200)</span>
-            <span>Scale: 1 Pixel / Tile (Zoom: 2x)</span>
+            <span>Click map to place block directly in-game</span>
           </div>
-          <canvas id="live-map-canvas" width="600" height="600" style="border: 1px solid #334155; border-radius: 6px; image-rendering: pixelated; background: #080d1a;"></canvas>
+          <canvas id="live-map-canvas" width="600" height="600" style="border: 1px solid #334155; border-radius: 6px; image-rendering: pixelated; background: #080d1a; cursor: crosshair;"></canvas>
         </div>
 
         <!-- Room Players & Quick Moderation Actions Card -->
@@ -1027,6 +1055,73 @@
           <div id="livemap-players-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 520px; overflow-y: auto;">
             <p style="color: var(--text-muted); font-size: 0.85rem;">No players currently in this room.</p>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================== -->
+    <!-- TAB 6: CREWS & GUILDS MANAGER         -->
+    <!-- ===================================== -->
+    <section id="tab-crews" class="tab-section">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">Crews & Guilds</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
+              Manage Everybody Edits player crews, leaders, member rosters, and crew rooms.
+            </p>
+          </div>
+          <button class="btn btn-primary" onclick="openNewCrewModal()">
+            <svg style="width: 16px; height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            Create New Crew
+          </button>
+        </div>
+
+        <div id="crews-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-top: 16px;">
+          <!-- Loaded dynamically -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================== -->
+    <!-- TAB 7: WORLD BACKUPS & SNAPSHOTS      -->
+    <!-- ===================================== -->
+    <section id="tab-backups" class="tab-section">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2 class="card-title">World Backups & Snapshots</h2>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-top: 4px;">
+              Create instant restore points and roll back worlds with 1 click.
+            </p>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <select id="backup-world-select" class="form-select" style="width: 180px;">
+              <option value="PW_default">Home World</option>
+            </select>
+            <input type="text" id="backup-custom-name" class="form-input" style="width: 180px;" placeholder="Snapshot label...">
+            <button class="btn btn-primary" onclick="createWorldBackup()">
+              <svg style="width: 16px; height: 16px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+              Create Snapshot
+            </button>
+          </div>
+        </div>
+
+        <div class="table-wrapper" style="margin-top: 16px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Filename</th>
+                <th>World ID</th>
+                <th>File Size</th>
+                <th>Created Timestamp</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="backups-table-body">
+              <tr><td colspan="5" style="text-align: center; color: var(--text-muted);">Loading backups...</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -1233,7 +1328,9 @@
         'worlds': 2,
         'shop': 3,
         'livemap': 4,
-        'console': 5
+        'crews': 5,
+        'backups': 6,
+        'console': 7
       };
       const navItems = document.querySelectorAll('.nav-item');
       if (navMap[tabId] !== undefined && navItems[navMap[tabId]]) {
@@ -1245,7 +1342,9 @@
         'users': ['User Management', 'Inspect, modify resources, roles, and inventories'],
         'worlds': ['World & Room Manager', 'Manage worlds, room edit codes, and live players'],
         'shop': ['Shop Catalog & Prices', 'Configure items, gem/energy costs, and featured status'],
-        'livemap': ['Live World Map', 'Real-time interactive canvas view of the world and online players'],
+        'livemap': ['Live World Map & Painter', 'Real-time interactive canvas view and live block painter'],
+        'crews': ['Crews & Guilds', 'Manage crew leaders, member rosters, colors, and permissions'],
+        'backups': ['World Backups & Snapshots', 'Create restore points and roll back worlds with 1 click'],
         'console': ['Live Server Console', 'Real-time logs, socket activity, and broadcasts']
       };
 
@@ -1257,8 +1356,277 @@
       if (tabId === 'users') { fetchUsers(); loadShopItems(); }
       if (tabId === 'worlds') fetchWorlds();
       if (tabId === 'shop') loadShopItems();
-      if (tabId === 'livemap') loadLiveMap();
+      if (tabId === 'livemap') { loadLiveMap(); setupCanvasPainter(); }
+      if (tabId === 'crews') loadCrews();
+      if (tabId === 'backups') loadBackups();
       if (tabId === 'console') fetchLogs();
+    }
+
+    // ==========================================
+    // 7. CREWS & GUILDS LOGIC
+    // ==========================================
+    let allCrews = [];
+
+    async function loadCrews() {
+      try {
+        const res = await fetch('/api/crews');
+        const data = await res.json();
+        const container = document.getElementById('crews-grid');
+        if (data.success && data.crews && data.crews.length > 0) {
+          allCrews = data.crews;
+          // Fetch full info for each crew
+          const fullCrews = await Promise.all(allCrews.map(async c => {
+            try {
+              const r = await fetch(`/api/crew?id=${encodeURIComponent(c.id)}`);
+              const d = await r.json();
+              return d.crew || c;
+            } catch (e) { return c; }
+          }));
+
+          container.innerHTML = fullCrews.map(cr => `
+            <div class="card" style="margin-bottom: 0; background: rgba(30, 41, 59, 0.9);">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <div>
+                  <h3 style="color: #fff; font-size: 1.1rem; font-weight: 700;">${cr.name}</h3>
+                  <span class="badge badge-user" style="margin-top: 4px; font-size: 0.7rem;">ID: ${cr.id}</span>
+                </div>
+                <span class="badge badge-gold">⭐ ${(cr.members || []).length} Members</span>
+              </div>
+              <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">
+                ${cr.description || 'Everybody Edits Official Crew'}
+              </p>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #94a3b8; border-top: 1px solid var(--border-color); padding-top: 10px;">
+                <span>Subscribers: <strong style="color:#fff;">${cr.subscribers || 0}</strong></span>
+                <span>Home: <strong style="color: var(--accent);">${cr.logoWorldId || 'PW_default'}</strong></span>
+              </div>
+              <div style="display: flex; gap: 8px; margin-top: 14px;">
+                <button class="btn btn-secondary btn-sm" style="flex: 1;" onclick="openEditCrewModal('${cr.id}')">Edit Crew</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteCrew('${cr.id}')">Delete</button>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: var(--text-muted); padding: 32px;">No crews created yet. Click "Create New Crew" above.</div>';
+        }
+      } catch (err) {
+        console.error('Failed to load crews:', err);
+      }
+    }
+
+    async function openNewCrewModal() {
+      const crewId = prompt('Enter unique Crew ID (e.g. "mycrew"):');
+      if (!crewId) return;
+      const crewName = prompt('Enter Crew Display Name (e.g. "My Legendary Crew"):');
+      if (!crewName) return;
+
+      const payload = {
+        id: crewId.toLowerCase().trim(),
+        name: crewName.trim(),
+        description: 'New Everybody Edits Crew',
+        subscribers: 0,
+        logoWorldId: 'PW_default',
+        members: [{ username: 'Admin', role: 'Leader', rank: 0, face: 0, isOnline: true }]
+      };
+
+      try {
+        const res = await fetch('/api/admin/crew/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Crew '${crewName}' created!`);
+          loadCrews();
+        } else {
+          showToast(data.error || 'Failed to create crew', 'error');
+        }
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function openEditCrewModal(crewId) {
+      const res = await fetch(`/api/crew?id=${encodeURIComponent(crewId)}`);
+      const data = await res.json();
+      if (!data.success || !data.crew) {
+        showToast('Crew not found', 'error');
+        return;
+      }
+      const cr = data.crew;
+      const newName = prompt(`Edit name for crew '${cr.id}':`, cr.name);
+      if (newName === null) return;
+      cr.name = newName;
+      const newDesc = prompt(`Edit description for crew '${cr.id}':`, cr.description || '');
+      if (newDesc !== null) cr.description = newDesc;
+
+      const saveRes = await fetch('/api/admin/crew/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cr)
+      });
+      const saveData = await saveRes.json();
+      if (saveData.success) {
+        showToast(`Crew '${cr.id}' updated!`);
+        loadCrews();
+      }
+    }
+
+    async function deleteCrew(crewId) {
+      if (!confirm(`Are you sure you want to delete crew '${crewId}'?`)) return;
+      try {
+        const res = await fetch('/api/admin/crew/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: crewId })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Crew '${crewId}' deleted`);
+          loadCrews();
+        }
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    // ==========================================
+    // 8. WORLD BACKUPS & SNAPSHOTS LOGIC
+    // ==========================================
+    async function loadBackups() {
+      // Populate world select
+      const select = document.getElementById('backup-world-select');
+      if (allWorlds.length === 0) await fetchWorlds();
+      select.innerHTML = allWorlds.map(w => `<option value="${w.id}">${w.title || w.id}</option>`).join('');
+
+      try {
+        const res = await fetch('/api/admin/backups');
+        const data = await res.json();
+        const tbody = document.getElementById('backups-table-body');
+        if (data.success && data.backups && data.backups.length > 0) {
+          tbody.innerHTML = data.backups.map(b => {
+            const sizeKb = (b.size / 1024).toFixed(1);
+            const dateStr = new Date(b.created).toLocaleString();
+            const worldId = b.filename.split('_')[0] || 'World';
+            return `
+              <tr>
+                <td><strong style="color: var(--accent); font-family: 'JetBrains Mono';">${b.filename}</strong></td>
+                <td><span class="badge badge-user">${worldId}</span></td>
+                <td>${sizeKb} KB</td>
+                <td style="color: var(--text-muted);">${dateStr}</td>
+                <td>
+                  <button class="btn btn-secondary btn-sm" onclick="restoreBackup('${worldId}', '${b.filename}')">🔄 Restore</button>
+                </td>
+              </tr>
+            `;
+          }).join('');
+        } else {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No backups created yet. Click "Create Snapshot" above.</td></tr>';
+        }
+      } catch (err) {
+        console.error('Failed to load backups:', err);
+      }
+    }
+
+    async function createWorldBackup() {
+      const worldId = document.getElementById('backup-world-select').value;
+      const name = document.getElementById('backup-custom-name').value.trim();
+
+      try {
+        const res = await fetch('/api/admin/world/backup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ worldId, name })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Snapshot created: ${data.filename}`);
+          document.getElementById('backup-custom-name').value = '';
+          loadBackups();
+        } else {
+          showToast(data.error || 'Backup failed', 'error');
+        }
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function restoreBackup(worldId, filename) {
+      if (!confirm(`Are you sure you want to RESTORE world '${worldId}' from snapshot '${filename}'? Active players will receive updated blocks.`)) return;
+
+      try {
+        const res = await fetch('/api/admin/world/restore', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ worldId, filename })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`World '${worldId}' restored from ${filename}!`);
+          loadBackups();
+          fetchWorlds();
+        } else {
+          showToast(data.error || 'Restore failed', 'error');
+        }
+      } catch (e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    // ==========================================
+    // 9. LIVE CANVAS PAINTER LOGIC
+    // ==========================================
+    let isCanvasPainterSetup = false;
+
+    function setupCanvasPainter() {
+      if (isCanvasPainterSetup) return;
+      const canvas = document.getElementById('live-map-canvas');
+      if (!canvas) return;
+
+      const getTileCoords = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.clientX - rect.left;
+        const clientY = e.clientY - rect.top;
+        const scale = 3;
+        const tileX = Math.floor(clientX / scale);
+        const tileY = Math.floor(clientY / scale);
+        return { tileX, tileY };
+      };
+
+      canvas.addEventListener('mousemove', (e) => {
+        const { tileX, tileY } = getTileCoords(e);
+        const coordsEl = document.getElementById('painter-coords-info');
+        let blockId = 0;
+        if (currentLiveRoomData && currentLiveRoomData.foreground && currentLiveRoomData.foreground[tileY]) {
+          blockId = currentLiveRoomData.foreground[tileY][tileX] || 0;
+        }
+        if (coordsEl) coordsEl.innerText = `X: ${tileX}, Y: ${tileY} | Block ID: ${blockId}`;
+      });
+
+      canvas.addEventListener('click', async (e) => {
+        const { tileX, tileY } = getTileCoords(e);
+        const blockId = Number(document.getElementById('painter-block-select').value || 9);
+        const worldId = document.getElementById('livemap-room-select').value || 'PW_default';
+
+        try {
+          const res = await fetch('/api/admin/world/setblock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ worldId, layer: 0, x: tileX, y: tileY, blockId })
+          });
+          const data = await res.json();
+          if (data.success) {
+            if (currentLiveRoomData && currentLiveRoomData.foreground && currentLiveRoomData.foreground[tileY]) {
+              currentLiveRoomData.foreground[tileY][tileX] = blockId;
+              renderLiveMapCanvas(currentLiveRoomData);
+            }
+          }
+        } catch (err) {
+          console.error('Failed to set block:', err);
+        }
+      });
+
+      isCanvasPainterSetup = true;
     }
 
     // Toast Notifications

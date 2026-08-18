@@ -99,6 +99,8 @@ package items
       
       public static const CHECKPOINT:int = 360;
       
+      public static const SPAWN:int = 255;
+      
       public static const SPIKE:int = 361;
       
       public static const SPIKE_CENTER:int = 1580;

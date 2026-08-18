@@ -105,6 +105,46 @@ class AchievementManager {
         rewardXP: 1000,
         rewardGems: 500,
         icon: '👑'
+      },
+      {
+        id: 'portal_traveler',
+        title: 'Dimenzió Vándor',
+        description: 'Használj 10 warpot vagy portált.',
+        statKey: 'portalsUsed',
+        target: 10,
+        rewardXP: 150,
+        rewardGems: 50,
+        icon: '🌀'
+      },
+      {
+        id: 'daily_master',
+        title: 'Hűséges Játékos',
+        description: 'Érj el 5 napos bejelentkezési sorozatot.',
+        statKey: 'streak',
+        target: 5,
+        rewardXP: 300,
+        rewardGems: 100,
+        icon: '🔥'
+      },
+      {
+        id: 'social_star',
+        title: 'Közösség Kedvence',
+        description: 'Küldj 20 privát üzenetet játékosoknak.',
+        statKey: 'dmsSent',
+        target: 20,
+        rewardXP: 200,
+        rewardGems: 60,
+        icon: '💌'
+      },
+      {
+        id: 'world_creator',
+        title: 'Világépítő Mester',
+        description: 'Mentsd el a saját pályádat legalább 10 alkalommal.',
+        statKey: 'worldSaves',
+        target: 10,
+        rewardXP: 250,
+        rewardGems: 80,
+        icon: '🛠️'
       }
     ];
   }

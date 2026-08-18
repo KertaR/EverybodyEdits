@@ -1,69 +1,123 @@
-# EverybodyEdits — Private Server & Offline Flash Client
+# Everybody Edits v264 — Private Server & Offline Flash Client
 
-This repository contains a private EverybodyEdits server and an offline Flash client. The documentation below explains project structure, prerequisites, build/run instructions, data formats, server API, and important implementation details.
-
----
-
-## Table of contents
-- Project overview
-- Directory structure
-- Prerequisites
-- Running the server
-- Build process (AS3 → SWF)
-- Data formats
-- API endpoints
-- Core game flows (energy, gems, shop, payvault, smiley/aura)
-- TCP (PlayerIO) protocol overview
-- Troubleshooting & common issues
-- Edited files summary
-- Contributing
+This repository contains a full private server and offline Flash client for **Everybody Edits v264**.
 
 ---
 
-## Project overview
-This project provides:
-- A Node.js backend compatible with a PlayerIO-like TCP protocol for EverybodyEdits.
-- An ActionScript 3 client (decompiled and modified) producing a local SWF (`game_local.swf`).
-- A shop/gem/energy/payvault system and world saving.
+## 🚀 What's New in v264
 
-Intended use: run locally for development, testing, or private servers.
+### 1. 🔄 Official v264 Protocol & Client Sync
+- Protocol and room types updated to `Everybodyedits264`, `Beta264`, `Lobby264`, `CrewLobby264`.
+- Updated `Config.as` and `EverybodyEdits.as` for seamless v264 communication.
 
----
+### 2. 💬 Enhanced Social & Messaging
+- **Private Messaging**: `/pm <user> <message>` or `/whisper` / `/tell`
+- **Quick Reply**: `/r <message>` (reply to last sender)
+- **World Warping**: `/warp <worldId>` or `/goto <worldId>`
 
-## Directory structure (example)
-Root: c:/Games/EE/
-- README.md — this file
-- build.ps1 — PowerShell build script (AS3 → SWF)
-- game.swf — original reference SWF
-- game_local.swf — rebuilt/modded client SWF
-- index.html — SWF wrapper
-- package.json — Node project config
-- ffdec/ffdec.jar — JPEXS Free Flash Decompiler tooling
-- server/
-  - index.js — server entry point
-  - config.json — server settings (ports, host)
-  - src/
-    - Server.js — main server logic (HTTP API + TCP server)
-    - Player.js, World.js, UserManager.js, PlayerIOProtocol.js, ...
-  - users/ — per-user JSON files
-  - shop/ — shop generator and items.json
-  - crews/ — crew JSON files
-  - worlds/ — saved world JSON files
-- src_decompiled/ — decompiled AS3 sources used to rebuild the SWF
-  - scripts/EverybodyEdits.as, Global.as, Shop.as, Player.as, World.as, etc.
+### 3. 🛡️ World Protection & Moderation Suite
+- **Locking & Access**: `/lock`, `/unlock`, `/allowguests <on|off>`
+- **Player Controls**: `/freeze <user>`, `/unfreeze <user>`, `/kick`, `/ban`, `/mute`, `/giveedit`, `/givegod`, `/tp`, `/tphere`
+- **Economy Granting**: `/givegems <user> <amt>`, `/giveenergy <user> <amt>`, `/givexp <user> <amt>`, `/giveitem <user> <itemId>`
 
----
+### 4. 💾 World Backups & Instant Snapshots
+- `/backup [label]` — saves instant rollback snapshot to `server/worlds/backups/`.
+- `/restore <filename>` — restores world state and live-synchronizes active players.
 
-## Prerequisites
-- Node.js v16+ (LTS) — run the server
-- Java 8+ JRE/JDK — to run ffdec.jar if used for compilation
-- Flash Player (standalone) — to run `game_local.swf` locally (e.g., `flashplayer_32_sa.exe`)
-- PowerShell (Windows) — optional for the provided build script
+### 5. 🎁 Daily Rewards, Quests & Leveling
+- **Daily Login Streak**: `/daily` (claim progressive gem, energy, and XP rewards each day).
+- **Daily Missions**: `/quests` (active rotating objectives with gem & XP payouts).
+- **Achievements & Stats**: `/stats [user]`, `/level [user]`, `/achievements`.
+
+### 6. 🎨 Pro Admin Dashboard (v264)
+- Accessible at `http://localhost:8080/admin.html`.
+- **Live World Map & Painter**: Real-time canvas rendering with click-to-draw block painter.
+- **Crews & Guilds Manager**: GUI to create, edit, customize colors, and assign crew ranks.
+- **Backup & Restore Manager**: One-click world snapshot creation and restoration.
+- **Economy & Inventory Editor**: Visual PayVault catalog with filter chips.
 
 ---
 
-## Run the server
-From repository root:
+## 📁 Directory Structure
+- `build.ps1` — PowerShell build script (AS3 → SWF with FFDec)
+- `game.swf` — Original reference SWF
+- `game_local.swf` — Rebuilt v264 client SWF
+- `flashplayer_32_sa.exe` — Standalone Flash Player projector
+- `admin.html` — v264 Pro Admin Suite
+- `server/`
+  - `index.js` — Server entry point (starts TCP 8184 + HTTP 8080 + Policy 843)
+  - `src/`
+    - `Server.js` — Core game room & packet handler
+    - `World.js` — World state, serializing, block storage & backups
+    - `Player.js` — Player session model
+    - `UserManager.js` — User authentication and storage
+    - `CrewManager.js` — Crew and clan management
+    - `AchievementManager.js` — Badges, XP leveling & stats
+    - `QuestManager.js` — Daily streak & quests system
+  - `worlds/` — Saved world JSON files and `backups/`
+  - `crews/` — Crew JSON data
+  - `users/` — Persistent user profiles
+
+---
+
+## 🛠️ Getting Started
+
+### Prerequisites
+- Node.js v16+ (LTS)
+- Java 8+ JRE/JDK (for FFDec SWF compiler)
+- Flash Player standalone (provided in root: `flashplayer_32_sa.exe`)
+
+### 1. Run the Server
 ```powershell
-cd c:\Games\EE
 node server/index.js
+```
+
+### 2. Launch the Game
+Double-click `Launch-Game.bat` or run:
+```powershell
+.\flashplayer_32_sa.exe game_local.swf
+```
+
+### 3. Open Admin Control Panel
+Open your browser and navigate to:
+```
+http://localhost:8080/admin.html
+```
+
+---
+
+## ⌨️ In-Game Chat Commands
+
+| Command | Description |
+|---|---|
+| `/pm <user> <msg>` | Send private message to player |
+| `/r <msg>` | Quick reply to last private message |
+| `/warp <worldId>` | Warp to specified world |
+| `/backup [name]` | Create snapshot backup of the current world |
+| `/restore <file>` | Restore world from a snapshot file |
+| `/daily` | Claim daily login streak bonus |
+| `/quests` | View daily active missions and rewards |
+| `/fill <x1> <y1> <x2> <y2> <id>` | Fill rectangular area with block |
+| `/bgfill <x1> <y1> <x2> <y2> <id>` | Fill rectangular area with background |
+| `/replace <fromId> <toId>` | Replace blocks across the world |
+| `/undo` | Undo the last WorldEdit / build action |
+| `/clear` | Clear all blocks in world (revertible with /undo) |
+| `/setspawn [x] [y]` | Set world spawn point |
+| `/worldtitle <title>` | Change world title |
+| `/worlddesc <desc>` | Change world description |
+| `/lock` / `/unlock` | Lock or unlock building permissions in room |
+| `/allowguests <on\|off>` | Toggle guest building permissions |
+| `/freeze <user>` / `/unfreeze` | Freeze or unfreeze a player's movement |
+| `/kick <user> [reason]` | Kick player from room |
+| `/ban <user> [reason]` | Ban player account |
+| `/mute <user>` / `/unmute` | Mute or unmute player from chat |
+| `/givegems <user> <amt>` | Grant gems to player |
+| `/giveenergy <user> <amt>` | Grant energy to player |
+| `/givexp <user> <amt>` | Grant XP to player |
+| `/giveitem <user> <item>` | Grant shop / PayVault item to player |
+| `/giveedit <user>` / `/removeedit` | Grant or revoke room edit rights |
+| `/god` | Toggle God Mode |
+| `/tp <user>` / `/tphere <user>` | Teleport to or summon player |
+| `/stats [user]` | Display level, XP, gems, and stats |
+| `/achievements` | Display list of unlocked achievements |
+| `/help` | Display list of all available commands |

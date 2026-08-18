@@ -10,8 +10,10 @@ class World {
     this.id = id;
     this.title = 'Private World';
     this.description = 'Welcome to Everybody Edits!';
-    this.owner = 'Admin';
+    this.owner = 'KertaR';
     this.ownerId = 'admin_1';
+    this.crewId = 'staff';
+    this.crewName = 'Staff Team';
     this.editKey = '';
     this.width = width;
     this.height = height;
@@ -238,8 +240,25 @@ class World {
       msg.add(xBuf);
       msg.add(yBuf);
 
-      // Add extra parameters depending on block type
-      if (group.extra !== null && group.extra !== undefined) {
+      const id = group.blockId;
+      if (id === 77 || id === 83 || id === 1520) {
+        const note = (group.extra !== null && typeof group.extra === 'number') ? group.extra : 0;
+        msg.add(note);
+      } else if (id === 1000) {
+        const text = (group.extra && group.extra.text) || '';
+        const color = (group.extra && group.extra.color) || '#FFFFFF';
+        const wrap = (group.extra && group.extra.wrap) || 200;
+        msg.add(text);
+        msg.add(color);
+        msg.add(wrap);
+      } else if (id === 242 || id === 381) {
+        const r = (group.extra && group.extra[0]) || 0;
+        const pid = (group.extra && group.extra[1]) || 0;
+        const tid = (group.extra && group.extra[2]) || 0;
+        msg.add(r);
+        msg.add(pid);
+        msg.add(tid);
+      } else if (group.extra !== null && group.extra !== undefined) {
         if (Array.isArray(group.extra)) {
           for (const item of group.extra) {
             msg.add(item);
@@ -276,6 +295,8 @@ class World {
       description: this.description || '',
       owner: this.owner,
       ownerId: this.ownerId,
+      crewId: this.crewId || '',
+      crewName: this.crewName || '',
       editKey: this.editKey || '',
       width: this.width,
       height: this.height,
@@ -305,6 +326,8 @@ class World {
       this.description = data.description || '';
       this.owner = data.owner || this.owner;
       this.ownerId = data.ownerId || this.ownerId;
+      this.crewId = data.crewId !== undefined ? data.crewId : (data.id === 'PW_default' ? 'staff' : '');
+      this.crewName = data.crewName !== undefined ? data.crewName : (data.id === 'PW_default' ? 'Staff Team' : '');
       this.editKey = data.editKey || '';
       this.width = data.width || 200;
       this.height = data.height || 200;
@@ -335,11 +358,108 @@ class World {
         }
       }
 
-      console.log(`Loaded world ${this.id} from ${filePath}`);
+      const sp = this.findSpawnPoint();
+      this.spawnX = sp.x;
+      this.spawnY = sp.y;
+
+      console.log(`Loaded world ${this.id} from ${filePath} (spawn: ${this.spawnX}, ${this.spawnY})`);
       return true;
     } catch (e) {
       console.error(`Failed to load world from ${filePath}:`, e);
       return false;
+    }
+  }
+
+  findSpawnPoint() {
+    for (let y = 0; y < this.height; y++) {
+      for (let x = 0; x < this.width; x++) {
+        if (this.foreground[y][x] === 255) {
+          return { x, y };
+        }
+      }
+    }
+    return { x: this.spawnX !== undefined ? this.spawnX : 16, y: this.spawnY !== undefined ? this.spawnY : 16 };
+  }
+
+  createBackup(worldsDir, customName = '') {
+    try {
+      const backupsDir = path.join(worldsDir, 'backups');
+      if (!fs.existsSync(backupsDir)) {
+        fs.mkdirSync(backupsDir, { recursive: true });
+      }
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const safeCustom = customName ? customName.replace(/[^a-zA-Z0-9_-]/g, '') : '';
+      const backupFilename = `${this.id}_${safeCustom ? safeCustom + '_' : ''}${timestamp}.json`;
+      const backupPath = path.join(backupsDir, backupFilename);
+
+      const data = {
+        id: this.id,
+        title: this.title,
+        description: this.description || '',
+        owner: this.owner,
+        ownerId: this.ownerId,
+        editKey: this.editKey,
+        width: this.width,
+        height: this.height,
+        spawnX: this.spawnX,
+        spawnY: this.spawnY,
+        backgroundColor: this.backgroundColor,
+        likes: this.likes,
+        favorites: this.favorites,
+        plays: this.plays,
+        backupTime: new Date().toISOString(),
+        backupName: customName || 'Automated Backup',
+        foreground: this.foreground.map(row => Array.from(row)),
+        background: this.background.map(row => Array.from(row)),
+        blockData: this.blockData
+      };
+
+      fs.writeFileSync(backupPath, JSON.stringify(data, null, 2), 'utf8');
+      console.log(`[Backup] World ${this.id} backed up to ${backupFilename}`);
+      return { success: true, filename: backupFilename, path: backupPath };
+    } catch (err) {
+      console.error(`[Backup Error] Failed to backup world ${this.id}:`, err);
+      return { success: false, error: err.message };
+    }
+  }
+
+  restoreFromBackup(worldsDir, backupFilename) {
+    try {
+      const backupsDir = path.join(worldsDir, 'backups');
+      const backupPath = path.join(backupsDir, backupFilename);
+      if (!fs.existsSync(backupPath)) {
+        return { success: false, error: `Backup file not found: ${backupFilename}` };
+      }
+      const ok = this.loadFromFile(backupPath);
+      if (ok) {
+        this.saveToFile(worldsDir);
+        return { success: true, world: this };
+      }
+      return { success: false, error: 'Failed to parse backup file' };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  }
+
+  static listBackups(worldsDir, worldId = null) {
+    try {
+      const backupsDir = path.join(worldsDir, 'backups');
+      if (!fs.existsSync(backupsDir)) return [];
+      const files = fs.readdirSync(backupsDir).filter(f => f.endsWith('.json'));
+      const list = [];
+      for (const f of files) {
+        if (!worldId || f.startsWith(worldId)) {
+          const stats = fs.statSync(path.join(backupsDir, f));
+          list.push({
+            filename: f,
+            size: stats.size,
+            created: stats.mtime
+          });
+        }
+      }
+      return list.sort((a, b) => b.created - a.created);
+    } catch (e) {
+      return [];
     }
   }
 }

@@ -32,6 +32,8 @@ package
    import ui.BrickContainer;
    import ui.ConfirmPrompt;
    import ui.LevelComplete;
+   import ui.button.Button;
+   import ui.button.ButtonColorType;
    import ui.Prompts.ConfirmRulesPrompt;
    import ui.ReportPrompt;
    import ui.Share;
@@ -95,6 +97,8 @@ package
       private var chatinput:ui2chatinput;
       
       private var download:ui2downloadbtn;
+      
+      public var questsBtn:Button;
       
       public var favoriteBricks:BrickContainer;
       
@@ -722,6 +726,31 @@ package
             Bl.data.canEdit = false;
             Bl.data.canToggleGodMode = false;
             auraMenu.redraw();
+            configureInterface();
+         });
+         connection.addMessageHandler("roomLocked",function(param1:Message, isLocked:Boolean):void
+         {
+            Bl.data.isStaffLocked = isLocked;
+            if(enterkey)
+            {
+               if(isLocked)
+               {
+                  enterkey.key.text = "Locked by Staff";
+                  enterkey.key.type = "dynamic";
+                  enterkey.key.selectable = false;
+                  enterkey.send.visible = false;
+               }
+               else
+               {
+                  if(enterkey.key.text == "Locked by Staff")
+                  {
+                     enterkey.key.text = "";
+                  }
+                  enterkey.key.type = "input";
+                  enterkey.key.selectable = true;
+                  enterkey.send.visible = true;
+               }
+            }
             configureInterface();
          });
          connection.addMessageHandler("toggleOwner",function(param1:Message, param2:Boolean):void
@@ -1689,6 +1718,23 @@ package
             this.add(this.chatbtn);
             if(!Bl.data.isCampaignRoom)
             {
+               if(Bl.data.isStaffLocked)
+               {
+                  this.enterkey.key.text = "Locked by Staff";
+                  this.enterkey.key.type = "dynamic";
+                  this.enterkey.key.selectable = false;
+                  this.enterkey.send.visible = false;
+               }
+               else
+               {
+                  if(this.enterkey.key.text == "Locked by Staff")
+                  {
+                     this.enterkey.key.text = "";
+                  }
+                  this.enterkey.key.type = "input";
+                  this.enterkey.key.selectable = true;
+                  this.enterkey.send.visible = true;
+               }
                this.add(this.enterkey);
             }
          }

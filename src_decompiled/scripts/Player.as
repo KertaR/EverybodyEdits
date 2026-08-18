@@ -78,6 +78,8 @@ package
       
       public var isDead:Boolean = false;
       
+      public var isFrozen:Boolean = false;
+      
       private var deathsend:Boolean = false;
       
       public var resetSend:Boolean;

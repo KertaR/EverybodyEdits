@@ -84,6 +84,14 @@ package ui.chat
          {
             addUser(param2.toString(),param3,param10,param14,param15,param17,param20);
          });
+         c.addMessageHandler("userCountry",function(param1:Message, param2:int, param3:String):void
+         {
+            var uItem:UserlistItem = users[param2.toString()] as UserlistItem;
+            if(uItem != null)
+            {
+               uItem.setCountry(param3);
+            }
+         });
          c.addMessageHandler("left",function(param1:Message, param2:int):void
          {
             removeUser(param2.toString());
@@ -92,6 +100,21 @@ package ui.chat
          {
             setMetaData(param2,param3,param4,param5,param6);
             Global.currentLevelname = param3;
+            if(!Config.disableCookie && Global.cookie != null && Global.cookie.data != null && Global.cookie.data.history != null)
+            {
+               var hist:Array = Global.cookie.data.history;
+               for(var hi:int = 0; hi < hist.length; hi++)
+               {
+                  if(hist[hi] != null && hist[hi].id == Global.roomid)
+                  {
+                     hist[hi].name = param3;
+                  }
+               }
+               if(!Global.noSave)
+               {
+                  Global.cookie.flush();
+               }
+            }
          });
          c.addMessageHandler("say",function(param1:Message, param2:int, param3:String):void
          {
