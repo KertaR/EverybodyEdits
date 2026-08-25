@@ -24,6 +24,10 @@ package ui.shop
       
       public var questsbtn:Sprite;
       
+      private var isQuestsActive:Boolean = false;
+      
+      private var questsTabTf:TextField;
+      
       public function ShopBar()
       {
          super();
@@ -75,41 +79,45 @@ package ui.shop
          this.questsbtn.buttonMode = true;
          this.questsbtn.mouseChildren = false;
          
-         var tabTf:TextField = new TextField();
-         tabTf.text = "Quests";
-         tabTf.width = 95;
-         tabTf.height = 30;
-         tabTf.selectable = false;
+         this.questsTabTf = new TextField();
+         this.questsTabTf.text = "Quests";
+         this.questsTabTf.width = 95;
+         this.questsTabTf.height = 30;
+         this.questsTabTf.selectable = false;
          var tabFmt:TextFormat = new TextFormat("system", 13, 0xffffff, false);
          tabFmt.align = TextFormatAlign.CENTER;
-         tabTf.defaultTextFormat = tabFmt;
-         tabTf.setTextFormat(tabFmt);
-         tabTf.y = 5;
+         this.questsTabTf.defaultTextFormat = tabFmt;
+         this.questsTabTf.setTextFormat(tabFmt);
+         this.questsTabTf.y = 5;
+         this.questsbtn.addChild(this.questsTabTf);
          
-         var drawTab:Function = function(bg:uint, border:uint):void
-         {
-            questsbtn.graphics.clear();
-            questsbtn.graphics.lineStyle(1, border, 1, true);
-            questsbtn.graphics.beginFill(bg, 1);
-            questsbtn.graphics.drawRoundRectComplex(0, 0, 95, 30, 4, 4, 0, 0);
-            questsbtn.graphics.endFill();
-         };
-         
-         drawTab(0x232323, 0x383838);
-         this.questsbtn.addChild(tabTf);
+         this.drawQuestsTab(0x232323, 0x383838, false);
          
          this.questsbtn.addEventListener(MouseEvent.MOUSE_OVER, function(e:MouseEvent):void
          {
-            drawTab(0x383838, 0x4f4f4f);
+            if(!isQuestsActive)
+            {
+               drawQuestsTab(0x383838, 0x4f4f4f, false);
+            }
          });
          this.questsbtn.addEventListener(MouseEvent.MOUSE_OUT, function(e:MouseEvent):void
          {
-            drawTab(0x232323, 0x383838);
+            if(!isQuestsActive)
+            {
+               drawQuestsTab(0x232323, 0x383838, false);
+            }
+            else
+            {
+               drawQuestsTab(0x0f172a, 0x38bdf8, true);
+            }
          });
          
          this.questsbtn.x = this.socialbtn.x + this.socialbtn.width + 2;
          this.questsbtn.y = 0;
-         this.questsbtn.addEventListener(MouseEvent.CLICK, this.openQuestsModal);
+         this.questsbtn.addEventListener(MouseEvent.CLICK, function(e:MouseEvent):void
+         {
+            (Global.base.state as LobbyState).setPage(LobbyStatePage.QUESTS);
+         });
          addChild(this.questsbtn);
          
          settingsbtn.x = this.questsbtn.x + 95 + 4;
@@ -120,6 +128,15 @@ package ui.shop
          shopbtn.mouseChildren = false;
          addEventListener(Event.ADDED_TO_STAGE,this.handleAddedToStage,false,0,true);
          this.setHighlight(LobbyStatePage.ROOMLIST);
+      }
+      
+      private function drawQuestsTab(bg:uint, border:uint, active:Boolean):void
+      {
+         questsbtn.graphics.clear();
+         questsbtn.graphics.lineStyle(1, border, 1, true);
+         questsbtn.graphics.beginFill(bg, 1);
+         questsbtn.graphics.drawRoundRectComplex(0, 0, 95, 30, 4, 4, 0, 0);
+         questsbtn.graphics.endFill();
       }
       
       public function resize() : void
@@ -309,6 +326,16 @@ package ui.shop
          shopbtn.gotoAndStop(param1 == LobbyStatePage.ENERGY_SHOP ? 2 : (shopbtn.currentFrame > 2 ? 3 : 1));
          socialbtn.highlight.gotoAndStop(param1 == LobbyStatePage.SOCIAL ? 3 : 1);
          socialbtn.gotoAndStop(param1 == LobbyStatePage.SOCIAL ? (socialbtn.currentFrame > 2 ? 4 : 2) : (socialbtn.currentFrame > 2 ? 3 : 1));
+         
+         this.isQuestsActive = (param1 == LobbyStatePage.QUESTS);
+         if (this.isQuestsActive)
+         {
+            this.drawQuestsTab(0x0a0f1d, 0x38bdf8, true);
+         }
+         else
+         {
+            this.drawQuestsTab(0x232323, 0x383838, false);
+         }
       }
       
       private function handleRemovedFromStage(param1:Event) : void
@@ -406,190 +433,10 @@ package ui.shop
       
       private function openQuestsModal(param1:MouseEvent = null) : void
       {
-         var uname:String = "Guest";
-         if (Global.playerObject != null && Global.playerObject.name != null && Global.playerObject.name != "")
+         if (Global.base != null && Global.base.state is LobbyState)
          {
-            uname = Global.playerObject.name;
+            (Global.base.state as LobbyState).setPage(LobbyStatePage.QUESTS);
          }
-         var qLoader:URLLoader = new URLLoader();
-         var qReq:URLRequest = new URLRequest("http://localhost:8080/api/quests?username=" + encodeURIComponent(uname));
-         qLoader.addEventListener(Event.COMPLETE, function(e:Event):void
-         {
-            try
-            {
-               var res:Object = JSON.parse(String(qLoader.data));
-               if (res != null && Boolean(res.success) && res.quests != null)
-               {
-                  var streak:int = int(res.quests.streak);
-                  var qList:Array = res.quests.quests as Array;
-                  
-                  // Create Modal Overlay
-                  var modal:Sprite = new Sprite();
-                  
-                  var bgOverlay:Sprite = new Sprite();
-                  bgOverlay.graphics.beginFill(0x000000, 0.7);
-                  bgOverlay.graphics.drawRect(-1000, -1000, 3000, 3000);
-                  bgOverlay.graphics.endFill();
-                  modal.addChild(bgOverlay);
-                  
-                  modal.addEventListener(MouseEvent.MOUSE_DOWN, function(evt:MouseEvent):void
-                  {
-                     evt.stopImmediatePropagation();
-                     evt.stopPropagation();
-                  });
-                  
-                  // Dialog Box (520x330)
-                  var pw:Number = 520;
-                  var ph:Number = 330;
-                  var panel:Sprite = new Sprite();
-                  panel.graphics.lineStyle(2, 0x3b82f6, 1);
-                  panel.graphics.beginFill(0x1e293b, 0.98);
-                  panel.graphics.drawRoundRect(0, 0, pw, ph, 14, 14);
-                  panel.graphics.endFill();
-                  
-                  // Header Bar
-                  panel.graphics.lineStyle(0, 0, 0);
-                  panel.graphics.beginFill(0x0f172a, 0.85);
-                  panel.graphics.drawRoundRectComplex(0, 0, pw, 42, 12, 12, 0, 0);
-                  panel.graphics.endFill();
-                  
-                  // Title
-                  var titleTf:TextField = new TextField();
-                  titleTf.text = "Daily Quests & Missions";
-                  titleTf.width = pw;
-                  titleTf.height = 30;
-                  titleTf.selectable = false;
-                  var tFmt:TextFormat = new TextFormat("Arial", 16, 0xffffff, true);
-                  tFmt.align = TextFormatAlign.CENTER;
-                  titleTf.defaultTextFormat = tFmt;
-                  titleTf.setTextFormat(tFmt);
-                  titleTf.y = 10;
-                  panel.addChild(titleTf);
-                  
-                  // Streak Banner
-                  var streakTf:TextField = new TextField();
-                  streakTf.text = "Login Streak: Day " + streak;
-                  streakTf.width = pw;
-                  streakTf.height = 24;
-                  streakTf.selectable = false;
-                  var sFmt:TextFormat = new TextFormat("Arial", 12, 0xf59e0b, true);
-                  sFmt.align = TextFormatAlign.CENTER;
-                  streakTf.defaultTextFormat = sFmt;
-                  streakTf.setTextFormat(sFmt);
-                  streakTf.y = 48;
-                  panel.addChild(streakTf);
-                  
-                  // Quest Cards
-                  var startY:Number = 74;
-                  if (qList != null && qList.length > 0)
-                  {
-                     for (var i:int = 0; i < qList.length; i++)
-                     {
-                        var q:Object = qList[i];
-                        var qCard:Sprite = new Sprite();
-                        var cardY:Number = startY + i * 58;
-                        
-                        qCard.graphics.lineStyle(1, q.completed ? 0x22c55e : 0x334155, 0.9);
-                        qCard.graphics.beginFill(q.completed ? 0x14532d : 0x0f172a, 0.75);
-                        qCard.graphics.drawRoundRect(20, cardY, pw - 40, 52, 8, 8);
-                        qCard.graphics.endFill();
-                        panel.addChild(qCard);
-                        
-                        var qTitleTf:TextField = new TextField();
-                        qTitleTf.text = (i + 1) + ". " + q.title + " (+" + q.rewardGems + " Gems, +" + q.rewardXP + " XP)";
-                        qTitleTf.x = 30;
-                        qTitleTf.y = cardY + 6;
-                        qTitleTf.width = 330;
-                        qTitleTf.height = 20;
-                        qTitleTf.selectable = false;
-                        var qtFmt:TextFormat = new TextFormat("Arial", 12, 0xffffff, true);
-                        qTitleTf.defaultTextFormat = qtFmt;
-                        qTitleTf.setTextFormat(qtFmt);
-                        panel.addChild(qTitleTf);
-                        
-                        var qDescTf:TextField = new TextField();
-                        qDescTf.text = String(q.desc || "");
-                        qDescTf.x = 30;
-                        qDescTf.y = cardY + 26;
-                        qDescTf.width = 330;
-                        qDescTf.height = 20;
-                        qDescTf.selectable = false;
-                        var qdFmt:TextFormat = new TextFormat("Arial", 11, 0x94a3b8, false);
-                        qDescTf.defaultTextFormat = qdFmt;
-                        qDescTf.setTextFormat(qdFmt);
-                        panel.addChild(qDescTf);
-                        
-                        var progTf:TextField = new TextField();
-                        progTf.text = q.completed ? "COMPLETED" : (q.current + " / " + q.target);
-                        progTf.x = pw - 160;
-                        progTf.y = cardY + 16;
-                        progTf.width = 130;
-                        progTf.height = 24;
-                        progTf.selectable = false;
-                        var prgFmt:TextFormat = new TextFormat("Arial", 12, q.completed ? 0x4ade80 : 0x38bdf8, true);
-                        prgFmt.align = TextFormatAlign.RIGHT;
-                        progTf.defaultTextFormat = prgFmt;
-                        progTf.setTextFormat(prgFmt);
-                        panel.addChild(progTf);
-                     }
-                  }
-                  
-                  // Close Button
-                  var closeBtn:Sprite = new Sprite();
-                  closeBtn.buttonMode = true;
-                  closeBtn.mouseChildren = false;
-                  closeBtn.graphics.lineStyle(1, 0x3b82f6);
-                  closeBtn.graphics.beginFill(0x2563eb);
-                  closeBtn.graphics.drawRoundRect(0, 0, 100, 30, 6, 6);
-                  closeBtn.graphics.endFill();
-                  
-                  var closeTf:TextField = new TextField();
-                  closeTf.text = "Close";
-                  closeTf.width = 100;
-                  closeTf.height = 30;
-                  closeTf.selectable = false;
-                  var cFmt:TextFormat = new TextFormat("Arial", 13, 0xffffff, true);
-                  cFmt.align = TextFormatAlign.CENTER;
-                  closeTf.defaultTextFormat = cFmt;
-                  closeTf.setTextFormat(cFmt);
-                  closeTf.y = 5;
-                  closeBtn.addChild(closeTf);
-                  
-                  closeBtn.x = (pw - 100) / 2;
-                  closeBtn.y = ph - 42;
-                  closeBtn.addEventListener(MouseEvent.CLICK, function(evt:MouseEvent):void
-                  {
-                     if (modal.parent != null)
-                     {
-                        modal.parent.removeChild(modal);
-                     }
-                  });
-                  panel.addChild(closeBtn);
-                  
-                  panel.x = (Config.width - pw) / 2;
-                  panel.y = (Config.height - ph) / 2;
-                  modal.addChild(panel);
-                  
-                  if (Global.base != null && Global.base.overlayContainer != null)
-                  {
-                     Global.base.overlayContainer.addChild(modal);
-                  }
-                  else if (Global.base != null && Global.base.state != null)
-                  {
-                     Global.base.state.addChild(modal);
-                  }
-               }
-            }
-            catch (err:Error)
-            {
-               trace("Quests modal error: " + err.message);
-            }
-         });
-         qLoader.addEventListener(IOErrorEvent.IO_ERROR, function(e:Event):void
-         {
-            trace("Quests HTTP request error");
-         });
-         qLoader.load(qReq);
       }
    }
 }

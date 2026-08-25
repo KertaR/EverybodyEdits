@@ -9,6 +9,13 @@ class UserManager {
     }
     this.users = new Map();
     this.loadAll();
+
+    // Periodic Background Energy Recharge: runs every 10 seconds for all users
+    this.energyInterval = setInterval(() => {
+      for (const user of this.users.values()) {
+        this.updateUserEnergy(user);
+      }
+    }, 10000);
   }
 
   loadAll() {
@@ -31,12 +38,18 @@ class UserManager {
             if (user.gems === undefined) { user.gems = 500; modified = true; }
             if (user.energy === undefined) { user.energy = 100; modified = true; }
             if (user.maxEnergy === undefined) { user.maxEnergy = 200; modified = true; }
+            if (user.lastEnergyUpdate === undefined) { user.lastEnergyUpdate = Date.now(); modified = true; }
             if (!user.itemEnergyProgress) { user.itemEnergyProgress = {}; modified = true; }
             if (!Array.isArray(user.friends)) { user.friends = []; modified = true; }
             if (!Array.isArray(user.favorites)) { user.favorites = []; modified = true; }
             if (!Array.isArray(user.likedWorlds)) { user.likedWorlds = []; modified = true; }
             if (user.crew === undefined) { user.crew = ''; modified = true; }
+            
             this.users.set(user.username.toLowerCase(), user);
+            
+            // Calculate and apply offline regenerated energy immediately
+            this.updateUserEnergy(user);
+
             if (modified) {
               fs.writeFileSync(filePath, JSON.stringify(user, null, 2), 'utf8');
             }
@@ -49,12 +62,56 @@ class UserManager {
     }
   }
 
+  updateUserEnergy(user, secondsPerEnergy = 30) {
+    if (!user) return;
+    const now = Date.now();
+    if (user.energy === undefined) user.energy = 100;
+    if (user.maxEnergy === undefined) user.maxEnergy = 200;
+    if (!user.lastEnergyUpdate) {
+      user.lastEnergyUpdate = now;
+      return;
+    }
+
+    if (user.energy < user.maxEnergy) {
+      const msPerEnergy = secondsPerEnergy * 1000;
+      const elapsedMs = now - user.lastEnergyUpdate;
+      const energyToAdd = Math.floor(elapsedMs / msPerEnergy);
+
+      if (energyToAdd > 0) {
+        const prevEnergy = user.energy;
+        user.energy = Math.min(user.maxEnergy, user.energy + energyToAdd);
+        user.lastEnergyUpdate = user.lastEnergyUpdate + (energyToAdd * msPerEnergy);
+        if (user.energy !== prevEnergy) {
+          this.saveUser(user.username);
+          console.log(`[Energy] Regenerated ${user.energy - prevEnergy} energy for ${user.username} (Now: ${user.energy}/${user.maxEnergy})`);
+        }
+      }
+    } else {
+      user.lastEnergyUpdate = now;
+    }
+  }
+
+  getEnergyInfo(user, secondsPerEnergy = 30) {
+    if (!user) return { energy: 100, maxEnergy: 200, timeToNext: 30, secondsBetweenEnergy: 30 };
+    this.updateUserEnergy(user, secondsPerEnergy);
+    const now = Date.now();
+    const last = user.lastEnergyUpdate || now;
+    const elapsedSec = Math.floor((now - last) / 1000);
+    const timeToNext = user.energy >= user.maxEnergy ? 0 : Math.max(0, secondsPerEnergy - (elapsedSec % secondsPerEnergy));
+    return {
+      energy: user.energy,
+      maxEnergy: user.maxEnergy,
+      timeToNext,
+      secondsBetweenEnergy: secondsPerEnergy
+    };
+  }
+
   saveUser(username, immediate = false) {
     try {
-      const user = this.getUser(username);
+      const key = String(username || '').trim().toLowerCase();
+      if (!key || key.startsWith('guest') || key.includes('-')) return false;
+      const user = this.users.get(key);
       if (!user) return false;
-      const key = username.trim().toLowerCase();
-      if (key.startsWith('guest') || key.includes('-')) return false;
 
       if (!this.saveTimers) this.saveTimers = new Map();
 
@@ -97,7 +154,11 @@ class UserManager {
     if (clean.startsWith('simple') && clean !== 'simpleguest') {
       clean = clean.substring(6);
     }
-    return this.users.get(clean) || null;
+    const user = this.users.get(clean) || null;
+    if (user) {
+      this.updateUserEnergy(user);
+    }
+    return user;
   }
 
   register(username, password = 'user123', email = '') {
@@ -124,6 +185,7 @@ class UserManager {
         gems: 500,
         energy: 100,
         maxEnergy: 200,
+        lastEnergyUpdate: Date.now(),
         payVault: [],
         smileyGoldBorder: false,
         friends: [],
@@ -135,7 +197,7 @@ class UserManager {
       };
       if (!isGuest) {
         this.users.set(key, user);
-        this.saveUser(user.username);
+        this.saveUser(user.username, true);
         console.log(`[UserManager] Registered and saved user file: users/${key}.json`);
       } else {
         console.log(`[UserManager] Temporary guest session created for ${user.username} (not saved to disk)`);
@@ -144,6 +206,7 @@ class UserManager {
       user.lastLogin = new Date().toISOString();
       if (password) user.password = password;
       if (email) user.email = email;
+      this.updateUserEnergy(user);
       this.saveUser(user.username);
     }
     return user;

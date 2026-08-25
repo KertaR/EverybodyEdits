@@ -660,23 +660,26 @@ package
       
       public static function get energy() : int
       {
-         if(Global.playerObject != null && Global.playerObject.energy >= 0)
-         {
-            return Global.playerObject.energy;
-         }
-         if(!refreshed)
+         var baseEnergy:int = (Global.playerObject != null && Global.playerObject.energy >= 0) ? int(Global.playerObject.energy) : _energy;
+         var maxEn:int = (Global.playerObject != null && Global.playerObject.maxEnergy > 0) ? int(Global.playerObject.maxEnergy) : (_totalEnergy > 0 ? _totalEnergy : 200);
+         if(!refreshed && Global.playerObject == null)
          {
             return 100;
          }
-         var _loc1_:int = _energy;
+         var _loc1_:int = baseEnergy;
          var _loc2_:Number = new Date().time - refreshDate;
+         var secRate:int = _secondsBetweenEnergy > 0 ? _secondsBetweenEnergy : 30;
          var _loc3_:Number = _timeToEnergy - _loc2_ / 1000;
          while(_loc3_ < 0)
          {
-            _loc3_ += _secondsBetweenEnergy;
+            _loc3_ += secRate;
             _loc1_++;
          }
-         return Math.min(_totalEnergy,_loc1_);
+         if (Global.playerObject != null)
+         {
+            Global.playerObject.energy = Math.min(maxEn, _loc1_);
+         }
+         return Math.min(maxEn, _loc1_);
       }
       
       public static function get gems() : int

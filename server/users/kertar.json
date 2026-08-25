@@ -13,7 +13,7 @@
   "aura": 0,
   "auraColor": 0,
   "badge": "",
-  "gems": 1000000450,
+  "gems": 1000000470,
   "energy": 200,
   "payVault": [
     "pro",
@@ -221,7 +221,7 @@
   ],
   "smileyGoldBorder": false,
   "registeredAt": "2026-08-05T07:32:30.917Z",
-  "lastLogin": "2026-08-18T15:03:04.294Z",
+  "lastLogin": "2026-08-25T10:16:19.444Z",
   "maxEnergy": 200,
   "itemEnergyProgress": {},
   "isBanned": false,
@@ -229,7 +229,7 @@
   "favorites": [],
   "likedWorlds": [],
   "crew": "",
-  "xp": 600,
+  "xp": 650,
   "level": 3,
   "stats": {
     "blocksPlaced": 1153,
@@ -261,16 +261,14 @@
     }
   ],
   "quests": {
-    "lastLoginDate": "2026-08-18",
+    "lastLoginDate": "2026-08-25",
     "streak": 1,
-    "dailyStats": {
-      "dailyBlocksPlaced": 436
-    },
+    "dailyStats": {},
     "activeQuests": [
       {
         "id": "daily_blocks_50",
-        "completed": true,
-        "claimed": true
+        "completed": false,
+        "claimed": false
       },
       {
         "id": "daily_jumps_100",

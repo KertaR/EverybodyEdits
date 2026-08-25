@@ -244,9 +244,21 @@ class Server {
           return;
         }
 
+        // API Endpoint: Get User Energy Info
+        if (req.method === 'GET' && (reqPath === '/api/energy' || reqPath.startsWith('/api/energy/'))) {
+          const parsedUrl = url.parse(req.url, true);
+          let username = parsedUrl.query.username || (reqPath.startsWith('/api/energy/') ? decodeURIComponent(reqPath.substring('/api/energy/'.length)) : 'KertaR');
+          const user = this.userManager.getUser(username);
+          const energyInfo = this.userManager.getEnergyInfo(user);
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+          res.end(JSON.stringify({ success: true, username: user ? user.username : username, ...energyInfo }));
+          return;
+        }
+
         // API Endpoint: Get User Data by Name
-        if (req.method === 'GET' && reqPath.startsWith('/api/user/')) {
-          const username = decodeURIComponent(reqPath.substring('/api/user/'.length));
+        if (req.method === 'GET' && (reqPath === '/api/user' || reqPath.startsWith('/api/user/'))) {
+          const parsedUrl = url.parse(req.url, true);
+          let username = parsedUrl.query.username || (reqPath.startsWith('/api/user/') ? decodeURIComponent(reqPath.substring('/api/user/'.length)) : 'KertaR');
           let user = this.userManager.getUser(username);
           if (!user) {
             user = {
@@ -260,8 +272,9 @@ class Server {
               payVault: []
             };
           }
+          const energyInfo = this.userManager.getEnergyInfo(user);
           res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-          res.end(JSON.stringify({ success: true, user }));
+          res.end(JSON.stringify({ success: true, user, energyInfo }));
           return;
         }
 
@@ -722,6 +735,7 @@ class Server {
                     energySpent = Math.min(user.energy, clickEnergy, neededEnergy);
                   }
                   user.energy = Math.max(0, user.energy - energySpent);
+                  user.lastEnergyUpdate = Date.now();
                   currentProgress += energySpent;
                   user.itemEnergyProgress[targetKey] = currentProgress;
                 }

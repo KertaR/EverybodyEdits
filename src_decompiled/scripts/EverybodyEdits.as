@@ -674,12 +674,11 @@ package
                       var m:Message = new Message("getShop");
                       var userGems:int = (Global.client != null && Global.client.payVault != null && Global.client.payVault.coins > 0) ? Global.client.payVault.coins : (Global.playerObject ? Global.playerObject.gems : 500);
                       var userEnergy:int = Global.playerObject ? Global.playerObject.energy : 100;
-                      var userMaxEnergy:int = Global.playerObject ? Global.playerObject.maxEnergy : 200;
                       m.add(userGems);
                       m.add(userEnergy);
-                      m.add(60);
+                      m.add(30);
                       m.add(userMaxEnergy);
-                      m.add(150);
+                      m.add(30);
 
                       for each(var itemObj:Object in jsonItems)
                       {

@@ -22,6 +22,11 @@ package states
    import flash.utils.Timer;
    import mx.utils.StringUtil;
    import playerio.Message;
+   import flash.events.IOErrorEvent;
+   import flash.filters.DropShadowFilter;
+   import flash.net.URLLoader;
+   import flash.text.TextFormat;
+   import flash.text.TextFormatAlign;
    import playerio.PlayerIOError;
    import playerio.RoomInfo;
    import ui.PlayerWorlds;
@@ -80,6 +85,8 @@ package states
       
       private var pageSocial:Sprite;
       
+      private var pageQuests:Sprite;
+      
       private var pageSettings:Sprite;
       
       private var pageShop:Sprite;
@@ -130,6 +137,18 @@ package states
       
       private var campaigns:CampaignPage;
       
+      private var questsStreakContainer:Sprite;
+      
+      private var questsListContainer:Sprite;
+      
+      private var questsCountdownTf:TextField;
+      
+      private var questsTimer:Timer;
+      
+      private var questsIsLoading:Boolean = false;
+      
+      private var questsBuilt:Boolean = false;
+      
       private var shop:ShopUI;
       
       public var mainshop:MainShop;
@@ -155,6 +174,7 @@ package states
          this.pageLobby = new Sprite();
          this.pageCampaigns = new Sprite();
          this.pageSocial = new Sprite();
+         this.pageQuests = new Sprite();
          this.pageSettings = new Sprite();
          this.pageShop = new Sprite();
          this.lobby_banner = new banner().bitmapData;
@@ -223,6 +243,8 @@ package states
          this.pageCampaigns.visible = false;
          this.container.addChild(this.pageSocial);
          this.pageSocial.visible = false;
+         this.container.addChild(this.pageQuests);
+         this.pageQuests.visible = false;
          this.container.addChild(this.pageSettings);
          this.pageSettings.visible = false;
          this.container.addChild(this.pageShop);
@@ -753,6 +775,12 @@ package states
                break;
             case LobbyStatePage.SOCIAL:
                this.setSubtextArray(["Manage friends, crews, and more!"]);
+               break;
+            case LobbyStatePage.QUESTS:
+               this.initQuestsPage();
+               this.refreshQuestsData();
+               this.setSubtextArray(["Complete daily missions to earn Gems, XP, and streak bonuses!"]);
+               break;
          }
          this.shopbar.setHighlight(param1);
          if(param1 != LobbyStatePage.SETTINGS && Boolean(this.settings))
@@ -762,6 +790,7 @@ package states
          this.togglePage(this.pageLobby,LobbyStatePage.ROOMLIST);
          this.togglePage(this.pageCampaigns,LobbyStatePage.CAMPAIGN);
          this.togglePage(this.pageSocial,LobbyStatePage.SOCIAL);
+         this.togglePage(this.pageQuests,LobbyStatePage.QUESTS);
          this.togglePage(this.pageSettings,LobbyStatePage.SETTINGS);
          this.togglePage(this.pageShop,LobbyStatePage.ENERGY_SHOP);
       }
@@ -784,6 +813,489 @@ package states
       {
          if(Global.player_is_guest) return;
          this.mainshop.showTab(param1.tab);
+      }
+      
+      private function initQuestsPage():void
+      {
+         if (this.questsBuilt) return;
+         this.questsBuilt = true;
+         
+         this.pageQuests.x = 13;
+         this.pageQuests.y = 95;
+         
+         var pw:Number = 824;
+         var ph:Number = 400;
+         
+         var bg:Sprite = new Sprite();
+         bg.graphics.lineStyle(1, 0x334155, 0.8, true);
+         bg.graphics.beginFill(0x0a0f1d, 0.92);
+         bg.graphics.drawRoundRect(0, 0, pw, ph, 10, 10);
+         bg.graphics.endFill();
+         bg.filters = [new DropShadowFilter(4, 45, 0x000000, 0.6, 8, 8, 1)];
+         this.pageQuests.addChild(bg);
+         
+         // Header bar
+         var hBox:Sprite = new Sprite();
+         hBox.graphics.lineStyle(1, 0x1e293b, 1, true);
+         hBox.graphics.beginFill(0x0f172a, 1);
+         hBox.graphics.drawRoundRectComplex(0, 0, pw, 48, 10, 10, 0, 0);
+         hBox.graphics.endFill();
+         this.pageQuests.addChild(hBox);
+         
+         var titleTf:TextField = new TextField();
+         titleTf.text = "⚔️ DAILY QUESTS & MISSIONS";
+         titleTf.x = 18;
+         titleTf.y = 12;
+         titleTf.width = 300;
+         titleTf.height = 28;
+         titleTf.selectable = false;
+         var tFmt:TextFormat = new TextFormat("Arial", 16, 0xffffff, true);
+         titleTf.defaultTextFormat = tFmt;
+         titleTf.setTextFormat(tFmt);
+         hBox.addChild(titleTf);
+         
+         var subTf:TextField = new TextField();
+         subTf.text = "Complete daily objectives to earn Gems, XP, and streak bonuses!";
+         subTf.x = 280;
+         subTf.y = 15;
+         subTf.width = 380;
+         subTf.height = 24;
+         subTf.selectable = false;
+         var sFmt:TextFormat = new TextFormat("Arial", 11, 0x94a3b8, false);
+         subTf.defaultTextFormat = sFmt;
+         subTf.setTextFormat(sFmt);
+         hBox.addChild(subTf);
+         
+         this.questsCountdownTf = new TextField();
+         this.questsCountdownTf.x = pw - 250;
+         this.questsCountdownTf.y = 14;
+         this.questsCountdownTf.width = 140;
+         this.questsCountdownTf.height = 24;
+         this.questsCountdownTf.selectable = false;
+         var cFmt:TextFormat = new TextFormat("Arial", 11, 0x38bdf8, true);
+         cFmt.align = TextFormatAlign.RIGHT;
+         this.questsCountdownTf.defaultTextFormat = cFmt;
+         this.questsCountdownTf.setTextFormat(cFmt);
+         hBox.addChild(this.questsCountdownTf);
+         
+         var refBtn:Sprite = new Sprite();
+         refBtn.buttonMode = true;
+         refBtn.mouseChildren = false;
+         refBtn.graphics.lineStyle(1, 0x3b82f6, 1, true);
+         refBtn.graphics.beginFill(0x1d4ed8, 1);
+         refBtn.graphics.drawRoundRect(0, 0, 85, 26, 6, 6);
+         refBtn.graphics.endFill();
+         refBtn.x = pw - 98;
+         refBtn.y = 11;
+         
+         var refTf:TextField = new TextField();
+         refTf.text = "🔄 Refresh";
+         refTf.width = 85;
+         refTf.height = 24;
+         refTf.selectable = false;
+         var rFmt:TextFormat = new TextFormat("Arial", 11, 0xffffff, true);
+         rFmt.align = TextFormatAlign.CENTER;
+         refTf.defaultTextFormat = rFmt;
+         refTf.setTextFormat(rFmt);
+         refTf.y = 4;
+         refBtn.addChild(refTf);
+         
+         refBtn.addEventListener(MouseEvent.MOUSE_OVER, function(e:MouseEvent):void
+         {
+            refBtn.graphics.clear();
+            refBtn.graphics.lineStyle(1, 0x60a5fa, 1, true);
+            refBtn.graphics.beginFill(0x2563eb, 1);
+            refBtn.graphics.drawRoundRect(0, 0, 85, 26, 6, 6);
+            refBtn.graphics.endFill();
+         });
+         refBtn.addEventListener(MouseEvent.MOUSE_OUT, function(e:MouseEvent):void
+         {
+            refBtn.graphics.clear();
+            refBtn.graphics.lineStyle(1, 0x3b82f6, 1, true);
+            refBtn.graphics.beginFill(0x1d4ed8, 1);
+            refBtn.graphics.drawRoundRect(0, 0, 85, 26, 6, 6);
+            refBtn.graphics.endFill();
+         });
+         refBtn.addEventListener(MouseEvent.CLICK, function(e:MouseEvent):void
+         {
+            refreshQuestsData();
+         });
+         hBox.addChild(refBtn);
+         
+         this.questsStreakContainer = new Sprite();
+         this.questsStreakContainer.x = 16;
+         this.questsStreakContainer.y = 60;
+         this.pageQuests.addChild(this.questsStreakContainer);
+         
+         this.questsListContainer = new Sprite();
+         this.questsListContainer.x = 310;
+         this.questsListContainer.y = 60;
+         this.pageQuests.addChild(this.questsListContainer);
+         
+         this.questsTimer = new Timer(1000);
+         this.questsTimer.addEventListener(TimerEvent.TIMER, this.updateQuestsCountdown);
+         this.questsTimer.start();
+         this.updateQuestsCountdown();
+      }
+      
+      private function updateQuestsCountdown(e:TimerEvent = null):void
+      {
+         var now:Date = new Date();
+         var midnight:Date = new Date(now.fullYear, now.month, now.date + 1, 0, 0, 0);
+         var diffSecs:Number = Math.max(0, Math.floor((midnight.time - now.time) / 1000));
+         
+         var h:int = Math.floor(diffSecs / 3600);
+         var m:int = Math.floor((diffSecs % 3600) / 60);
+         var s:int = Math.floor(diffSecs % 60);
+         
+         var hStr:String = h < 10 ? "0" + h : String(h);
+         var mStr:String = m < 10 ? "0" + m : String(m);
+         var sStr:String = s < 10 ? "0" + s : String(s);
+         
+         if (this.questsCountdownTf != null)
+         {
+            this.questsCountdownTf.text = "⏱️ Reset in: " + hStr + ":" + mStr + ":" + sStr;
+         }
+      }
+      
+      private function refreshQuestsData():void
+      {
+         if (this.questsIsLoading) return;
+         this.questsIsLoading = true;
+         
+         var uname:String = "KertaR";
+         if (Global.playerObject != null && Global.playerObject.name != null && Global.playerObject.name != "")
+         {
+            uname = Global.playerObject.name;
+         }
+         else if (Global.cookie != null && Global.cookie.data != null && Global.cookie.data.username != null)
+         {
+            uname = Global.cookie.data.username;
+         }
+         
+         var qLoader:URLLoader = new URLLoader();
+         var qReq:URLRequest = new URLRequest("http://localhost:8080/api/quests?username=" + encodeURIComponent(uname));
+         qLoader.addEventListener(Event.COMPLETE, function(evt:Event):void
+         {
+            questsIsLoading = false;
+            try
+            {
+               var resData:Object = JSON.parse(String(qLoader.data));
+               renderQuestsData(resData);
+            }
+            catch (err:Error)
+            {
+               trace("Error parsing quests JSON: " + err.message);
+            }
+         });
+         qLoader.addEventListener(IOErrorEvent.IO_ERROR, function(evt:IOErrorEvent):void
+         {
+            questsIsLoading = false;
+         });
+         
+         try
+         {
+            qLoader.load(qReq);
+         }
+         catch (e:Error)
+         {
+            this.questsIsLoading = false;
+         }
+      }
+      
+      private function renderQuestsData(data:Object):void
+      {
+         if (data == null) return;
+         var streak:int = data.streak != null ? int(data.streak) : 1;
+         var qList:Array = data.quests as Array;
+         
+         // 1. Streak Calendar
+         while (this.questsStreakContainer.numChildren > 0)
+         {
+            this.questsStreakContainer.removeChildAt(0);
+         }
+         
+         var bgW:Number = 278;
+         var bgH:Number = 324;
+         
+         var cardBg:Sprite = new Sprite();
+         cardBg.graphics.lineStyle(1, 0x1e293b, 1, true);
+         cardBg.graphics.beginFill(0x0f172a, 0.85);
+         cardBg.graphics.drawRoundRect(0, 0, bgW, bgH, 8, 8);
+         cardBg.graphics.endFill();
+         this.questsStreakContainer.addChild(cardBg);
+         
+         var stHeader:TextField = new TextField();
+         stHeader.text = "🔥 7-DAY LOGIN STREAK";
+         stHeader.x = 12;
+         stHeader.y = 10;
+         stHeader.width = bgW - 24;
+         stHeader.height = 22;
+         stHeader.selectable = false;
+         var stFmt:TextFormat = new TextFormat("Arial", 13, 0xf59e0b, true);
+         stHeader.defaultTextFormat = stFmt;
+         stHeader.setTextFormat(stFmt);
+         this.questsStreakContainer.addChild(stHeader);
+         
+         var stSub:TextField = new TextField();
+         stSub.text = "Current Streak: Day " + streak + " • Log in daily!";
+         stSub.x = 12;
+         stSub.y = 30;
+         stSub.width = bgW - 24;
+         stSub.height = 20;
+         stSub.selectable = false;
+         var stSubFmt:TextFormat = new TextFormat("Arial", 10, 0x94a3b8, false);
+         stSub.defaultTextFormat = stSubFmt;
+         stSub.setTextFormat(stSubFmt);
+         this.questsStreakContainer.addChild(stSub);
+         
+         var rewards:Array = [
+            { day: 1, gems: 20, xp: 50 },
+            { day: 2, gems: 40, xp: 100 },
+            { day: 3, gems: 60, xp: 150 },
+            { day: 4, gems: 80, xp: 200 },
+            { day: 5, gems: 100, xp: 250 },
+            { day: 6, gems: 120, xp: 300 },
+            { day: 7, gems: 140, xp: 350, special: "👑 Crown" }
+         ];
+         
+         var boxStartY:Number = 52;
+         for (var i:int = 0; i < rewards.length; i++)
+         {
+            var r:Object = rewards[i];
+            var dayNum:int = r.day;
+            var isCurrent:Boolean = (dayNum == ((streak - 1) % 7 + 1));
+            var isPast:Boolean = (dayNum <= ((streak - 1) % 7 + 1));
+            
+            var rowY:Number = boxStartY + i * 36;
+            var rowBox:Sprite = new Sprite();
+            
+            rowBox.graphics.lineStyle(1, isCurrent ? 0xf59e0b : (isPast ? 0x22c55e : 0x334155), isCurrent ? 1 : 0.6, true);
+            rowBox.graphics.beginFill(isCurrent ? 0x2d1f05 : (isPast ? 0x062817 : 0x1e293b), 0.75);
+            rowBox.graphics.drawRoundRect(10, rowY, bgW - 20, 32, 6, 6);
+            rowBox.graphics.endFill();
+            this.questsStreakContainer.addChild(rowBox);
+            
+            var dLabel:TextField = new TextField();
+            dLabel.text = "Day " + dayNum;
+            dLabel.x = 16;
+            dLabel.y = rowY + 6;
+            dLabel.width = 50;
+            dLabel.height = 20;
+            dLabel.selectable = false;
+            var dFmt:TextFormat = new TextFormat("Arial", 11, isCurrent ? 0xfbbf24 : 0xffffff, true);
+            dLabel.defaultTextFormat = dFmt;
+            dLabel.setTextFormat(dFmt);
+            this.questsStreakContainer.addChild(dLabel);
+            
+            var rewLabel:TextField = new TextField();
+            rewLabel.text = "+" + r.gems + " 💎  +" + r.xp + " XP" + (r.special != null ? ("  " + r.special) : "");
+            rewLabel.x = 68;
+            rewLabel.y = rowY + 7;
+            rewLabel.width = 135;
+            rewLabel.height = 20;
+            rewLabel.selectable = false;
+            var rFmt2:TextFormat = new TextFormat("Arial", 10, 0x38bdf8, false);
+            rewLabel.defaultTextFormat = rFmt2;
+            rewLabel.setTextFormat(rFmt2);
+            this.questsStreakContainer.addChild(rewLabel);
+            
+            var statLabel:TextField = new TextField();
+            statLabel.text = isCurrent ? "🔥 TODAY" : (isPast ? "✓ CLAIMED" : "LOCKED");
+            statLabel.x = bgW - 86;
+            statLabel.y = rowY + 7;
+            statLabel.width = 72;
+            statLabel.height = 20;
+            statLabel.selectable = false;
+            var sFmt2:TextFormat = new TextFormat("Arial", 9, isCurrent ? 0xfbbf24 : (isPast ? 0x4ade80 : 0x64748b), true);
+            sFmt2.align = TextFormatAlign.RIGHT;
+            statLabel.defaultTextFormat = sFmt2;
+            statLabel.setTextFormat(sFmt2);
+            this.questsStreakContainer.addChild(statLabel);
+         }
+         
+         // 2. Active Quests List
+         while (this.questsListContainer.numChildren > 0)
+         {
+            this.questsListContainer.removeChildAt(0);
+         }
+         
+         var cW:Number = 496;
+         var cH:Number = 324;
+         
+         var qBg:Sprite = new Sprite();
+         qBg.graphics.lineStyle(1, 0x1e293b, 1, true);
+         qBg.graphics.beginFill(0x0f172a, 0.85);
+         qBg.graphics.drawRoundRect(0, 0, cW, cH, 8, 8);
+         qBg.graphics.endFill();
+         this.questsListContainer.addChild(qBg);
+         
+         var qHeader:TextField = new TextField();
+         qHeader.text = "🎯 TODAY\'S ACTIVE MISSIONS";
+         qHeader.x = 14;
+         qHeader.y = 10;
+         qHeader.width = cW - 28;
+         qHeader.height = 22;
+         qHeader.selectable = false;
+         var qFmt:TextFormat = new TextFormat("Arial", 13, 0x38bdf8, true);
+         qHeader.defaultTextFormat = qFmt;
+         qHeader.setTextFormat(qFmt);
+         this.questsListContainer.addChild(qHeader);
+         
+         if (qList == null || qList.length == 0)
+         {
+            var emptyTf:TextField = new TextField();
+            emptyTf.text = "No active daily quests available at this moment.";
+            emptyTf.x = 14;
+            emptyTf.y = 50;
+            emptyTf.width = cW - 28;
+            emptyTf.height = 30;
+            emptyTf.selectable = false;
+            var eFmt:TextFormat = new TextFormat("Arial", 12, 0x94a3b8, false);
+            emptyTf.defaultTextFormat = eFmt;
+            emptyTf.setTextFormat(eFmt);
+            this.questsListContainer.addChild(emptyTf);
+            return;
+         }
+         
+         var cardStartY:Number = 36;
+         var cardH:Number = 82;
+         
+         for (var j:int = 0; j < qList.length; j++)
+         {
+            var q:Object = qList[j];
+            var qCardY:Number = cardStartY + j * (cardH + 8);
+            var isComp:Boolean = Boolean(q.completed);
+            
+            var card:Sprite = new Sprite();
+            card.graphics.lineStyle(1, isComp ? 0x22c55e : 0x334155, isComp ? 0.9 : 0.6, true);
+            card.graphics.beginFill(isComp ? 0x072714 : 0x131d31, 0.9);
+            card.graphics.drawRoundRect(10, qCardY, cW - 20, cardH, 8, 8);
+            card.graphics.endFill();
+            this.questsListContainer.addChild(card);
+            
+            var iconBox:Sprite = new Sprite();
+            iconBox.graphics.lineStyle(1, isComp ? 0x16a34a : 0x1e293b, 1, true);
+            iconBox.graphics.beginFill(isComp ? 0x14532d : 0x0f172a, 1);
+            iconBox.graphics.drawRoundRect(18, qCardY + 12, 54, 54, 8, 8);
+            iconBox.graphics.endFill();
+            this.questsListContainer.addChild(iconBox);
+            
+            var iconTf:TextField = new TextField();
+            iconTf.text = String(q.icon || "⭐");
+            iconTf.x = 18;
+            iconTf.y = qCardY + 20;
+            iconTf.width = 54;
+            iconTf.height = 36;
+            iconTf.selectable = false;
+            var iFmt:TextFormat = new TextFormat("Arial", 20, 0xffffff, true);
+            iFmt.align = TextFormatAlign.CENTER;
+            iconTf.defaultTextFormat = iFmt;
+            iconTf.setTextFormat(iFmt);
+            this.questsListContainer.addChild(iconTf);
+            
+            var qTitleTf:TextField = new TextField();
+            qTitleTf.text = String(q.title || "Daily Mission");
+            qTitleTf.x = 82;
+            qTitleTf.y = qCardY + 10;
+            qTitleTf.width = 240;
+            qTitleTf.height = 20;
+            qTitleTf.selectable = false;
+            var qtFmt:TextFormat = new TextFormat("Arial", 13, 0xffffff, true);
+            titleTf.defaultTextFormat = qtFmt;
+            titleTf.setTextFormat(qtFmt);
+            this.questsListContainer.addChild(qTitleTf);
+            
+            var descTf:TextField = new TextField();
+            descTf.text = String(q.desc || "");
+            descTf.x = 82;
+            descTf.y = qCardY + 30;
+            descTf.width = 240;
+            descTf.height = 20;
+            descTf.selectable = false;
+            var qdFmt:TextFormat = new TextFormat("Arial", 11, 0x94a3b8, false);
+            descTf.defaultTextFormat = qdFmt;
+            descTf.setTextFormat(qdFmt);
+            this.questsListContainer.addChild(descTf);
+            
+            var pBarW:Number = 220;
+            var pBarH:Number = 12;
+            var pBarX:Number = 82;
+            var pBarY:Number = qCardY + 54;
+            
+            var cur:int = int(q.current || 0);
+            var tgt:int = Math.max(1, int(q.target || 1));
+            var pct:Number = Math.min(1.0, Math.max(0.0, Number(cur) / Number(tgt)));
+            if (isComp) pct = 1.0;
+            
+            var pBarBg:Sprite = new Sprite();
+            pBarBg.graphics.lineStyle(1, 0x334155, 1, true);
+            pBarBg.graphics.beginFill(0x0a0f1d, 1);
+            pBarBg.graphics.drawRoundRect(pBarX, pBarY, pBarW, pBarH, 4, 4);
+            pBarBg.graphics.endFill();
+            this.questsListContainer.addChild(pBarBg);
+            
+            if (pct > 0)
+            {
+               var pBarFill:Sprite = new Sprite();
+               pBarFill.graphics.beginFill(isComp ? 0x22c55e : 0x3b82f6, 1);
+               pBarFill.graphics.drawRoundRect(pBarX, pBarY, pBarW * pct, pBarH, 4, 4);
+               pBarFill.graphics.endFill();
+               this.questsListContainer.addChild(pBarFill);
+            }
+            
+            var pText:TextField = new TextField();
+            pText.text = cur + " / " + tgt;
+            pText.x = pBarX + pBarW + 8;
+            pText.y = pBarY - 2;
+            pText.width = 65;
+            pText.height = 18;
+            pText.selectable = false;
+            var ptFmt:TextFormat = new TextFormat("Arial", 10, isComp ? 0x4ade80 : 0x94a3b8, true);
+            pText.defaultTextFormat = ptFmt;
+            pText.setTextFormat(ptFmt);
+            this.questsListContainer.addChild(pText);
+            
+            var rewBox:Sprite = new Sprite();
+            rewBox.graphics.lineStyle(1, 0x1e293b, 1, true);
+            rewBox.graphics.beginFill(0x0f172a, 0.9);
+            rewBox.graphics.drawRoundRect(cW - 120, qCardY + 12, 104, 26, 6, 6);
+            rewBox.graphics.endFill();
+            this.questsListContainer.addChild(rewBox);
+            
+            var rewTf:TextField = new TextField();
+            rewTf.text = "+" + q.rewardGems + " 💎  +" + q.rewardXP + " XP";
+            rewTf.x = cW - 120;
+            rewTf.y = qCardY + 16;
+            rewTf.width = 104;
+            rewTf.height = 20;
+            rewTf.selectable = false;
+            var rwFmt:TextFormat = new TextFormat("Arial", 10, 0xf59e0b, true);
+            rwFmt.align = TextFormatAlign.CENTER;
+            rewTf.defaultTextFormat = rwFmt;
+            rewTf.setTextFormat(rwFmt);
+            this.questsListContainer.addChild(rewTf);
+            
+            var statusBox:Sprite = new Sprite();
+            statusBox.graphics.lineStyle(1, isComp ? 0x16a34a : 0x334155, 1, true);
+            statusBox.graphics.beginFill(isComp ? 0x15803d : 0x1e293b, 1);
+            statusBox.graphics.drawRoundRect(cW - 120, qCardY + 44, 104, 24, 6, 6);
+            statusBox.graphics.endFill();
+            this.questsListContainer.addChild(statusBox);
+            
+            var stTf:TextField = new TextField();
+            stTf.text = isComp ? "✓ COMPLETED" : "IN PROGRESS";
+            stTf.x = cW - 120;
+            stTf.y = qCardY + 47;
+            stTf.width = 104;
+            stTf.height = 20;
+            stTf.selectable = false;
+            var stFmt2:TextFormat = new TextFormat("Arial", 10, isComp ? 0xffffff : 0x94a3b8, true);
+            stFmt2.align = TextFormatAlign.CENTER;
+            stTf.defaultTextFormat = stFmt2;
+            stTf.setTextFormat(stFmt2);
+            this.questsListContainer.addChild(stTf);
+         }
       }
       
       override public function get align() : String

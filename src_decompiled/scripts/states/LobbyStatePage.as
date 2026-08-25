@@ -11,6 +11,8 @@ package states
       
       public static const SOCIAL:String = "Social";
       
+      public static const QUESTS:String = "Quests";
+      
       public static const SETTINGS:String = "Settings";
       
       public function LobbyStatePage()
